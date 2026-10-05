@@ -4,6 +4,7 @@ export const DEFAULT_THRESHOLDS: ProjectThresholds = {
   safeMax: 65.0,      // dB: Readings below 65 dB are categorized as Safe
   moderateMax: 75.0,  // dB: Readings between 65 dB and 75 dB are Moderate
   highMax: 85.0,      // dB: Readings between 75 dB and 85 dB are High; > 85 dB is Critical
+  durationMinutesTrigger: 5 // Minutes sustained above threshold required to generate smart alert
 };
 
 export interface RegulatoryStandard {

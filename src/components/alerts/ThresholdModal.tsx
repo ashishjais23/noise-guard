@@ -35,7 +35,7 @@ export const ThresholdModal: React.FC<ThresholdModalProps> = ({
       return;
     }
     setError(null);
-    onSave({ safeMax, moderateMax, highMax });
+    onSave({ safeMax, moderateMax, highMax, durationMinutesTrigger: thresholds.durationMinutesTrigger || 5 });
     onClose();
   };
 

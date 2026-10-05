@@ -42,7 +42,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
             <span>Potential Contributing Factors</span>
           </h4>
           <ul className="space-y-1 text-xs text-slate-600 pl-4 list-disc marker:text-orange-400">
-            {recommendation.potentialFactors.map((factor, idx) => (
+            {recommendation.potentialFactors.map((factor: string, idx: number) => (
               <li key={idx} className="leading-relaxed">
                 {factor}
               </li>
@@ -57,7 +57,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({
             <span>Suggested Interventions</span>
           </h4>
           <ul className="space-y-1.5 text-xs text-slate-700 pl-4 list-disc marker:text-teal-500">
-            {recommendation.suggestedInterventions.map((action, idx) => (
+            {recommendation.suggestedInterventions.map((action: string, idx: number) => (
               <li key={idx} className="leading-relaxed font-medium">
                 {action}
               </li>

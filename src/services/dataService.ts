@@ -3,10 +3,16 @@ import {
   NoiseReading,
   NoiseAlert,
   ProjectThresholds,
-  DataSource
+  DataSource,
+  CityItem,
+  SensorItem,
+  CitizenReport,
+  AdminUser,
+  ReportStatus
 } from '../types';
 import { INITIAL_LOCATIONS } from '../data/initialLocations';
-import { generateSeedHistoricalReadings, SAMPLE_OBSERVED_READINGS } from '../data/seedReadings';
+import { INITIAL_CITIES, INITIAL_SENSORS, INITIAL_CITIZEN_REPORTS } from '../data/citiesAndSensors';
+import { generateSeedHistoricalReadings } from '../data/seedReadings';
 import { DEFAULT_THRESHOLDS } from '../data/defaultThresholds';
 import { evaluateReadingForAlert } from './alertEngine';
 
@@ -15,22 +21,68 @@ const STORAGE_KEYS = {
   READINGS: 'noiseguard_readings_v2',
   ALERTS: 'noiseguard_alerts_v2',
   THRESHOLDS: 'noiseguard_thresholds_v2',
-  DATA_MODE: 'noiseguard_datamode_v2'
+  CITIES: 'noiseguard_cities_v2',
+  SENSORS: 'noiseguard_sensors_v2',
+  REPORTS: 'noiseguard_reports_v2',
+  ADMIN_USER: 'noiseguard_admin_user_v2',
+  THEME: 'noiseguard_theme_v2'
 };
 
 class DataService {
+  private cities: CityItem[] = [];
+  private sensors: SensorItem[] = [];
+  private reports: CitizenReport[] = [];
   private locations: LocationItem[] = [];
   private readings: NoiseReading[] = [];
   private alerts: NoiseAlert[] = [];
   private thresholds: ProjectThresholds = DEFAULT_THRESHOLDS;
-  private dataMode: 'SIMULATION' | 'OBSERVED' = 'SIMULATION';
+  private adminUser: AdminUser | null = null;
 
   constructor() {
     this.initializeData();
   }
 
   private initializeData(): void {
-    // 1. Locations
+    // 1. Cities
+    const savedCities = localStorage.getItem(STORAGE_KEYS.CITIES);
+    if (savedCities) {
+      try {
+        this.cities = JSON.parse(savedCities);
+      } catch {
+        this.cities = INITIAL_CITIES;
+      }
+    } else {
+      this.cities = INITIAL_CITIES;
+      this.saveCities();
+    }
+
+    // 2. Sensors
+    const savedSensors = localStorage.getItem(STORAGE_KEYS.SENSORS);
+    if (savedSensors) {
+      try {
+        this.sensors = JSON.parse(savedSensors);
+      } catch {
+        this.sensors = INITIAL_SENSORS;
+      }
+    } else {
+      this.sensors = INITIAL_SENSORS;
+      this.saveSensors();
+    }
+
+    // 3. Citizen Reports
+    const savedReports = localStorage.getItem(STORAGE_KEYS.REPORTS);
+    if (savedReports) {
+      try {
+        this.reports = JSON.parse(savedReports);
+      } catch {
+        this.reports = INITIAL_CITIZEN_REPORTS;
+      }
+    } else {
+      this.reports = INITIAL_CITIZEN_REPORTS;
+      this.saveReports();
+    }
+
+    // 4. Locations
     const savedLocs = localStorage.getItem(STORAGE_KEYS.LOCATIONS);
     if (savedLocs) {
       try {
@@ -43,7 +95,7 @@ class DataService {
       this.saveLocations();
     }
 
-    // 2. Thresholds
+    // 5. Thresholds
     const savedThresholds = localStorage.getItem(STORAGE_KEYS.THRESHOLDS);
     if (savedThresholds) {
       try {
@@ -53,12 +105,12 @@ class DataService {
       }
     }
 
-    // 3. Readings
+    // 6. Readings
     const savedReadings = localStorage.getItem(STORAGE_KEYS.READINGS);
     if (savedReadings) {
       try {
         const parsed = JSON.parse(savedReadings);
-        if (Array.isArray(parsed) && parsed.length >= 200) {
+        if (Array.isArray(parsed) && parsed.length >= 100) {
           this.readings = parsed;
         } else {
           this.readings = generateSeedHistoricalReadings();
@@ -73,7 +125,7 @@ class DataService {
       this.saveReadings();
     }
 
-    // 4. Alerts
+    // 7. Alerts
     const savedAlerts = localStorage.getItem(STORAGE_KEYS.ALERTS);
     if (savedAlerts) {
       try {
@@ -84,26 +136,52 @@ class DataService {
     } else {
       this.generateInitialAlerts();
     }
+
+    // 8. Admin User Session
+    const savedAdmin = localStorage.getItem(STORAGE_KEYS.ADMIN_USER);
+    if (savedAdmin) {
+      try {
+        this.adminUser = JSON.parse(savedAdmin);
+      } catch {
+        this.adminUser = null;
+      }
+    }
   }
 
   private generateInitialAlerts(): void {
     this.alerts = [];
-    // Evaluate recent seed readings against thresholds
-    const recentReadings = this.readings.slice(-60);
-    for (const r of recentReadings) {
-      const alert = evaluateReadingForAlert(r, this.thresholds, this.alerts);
-      if (alert) {
-        const existingIdx = this.alerts.findIndex((a) => a.id === alert.id);
-        if (existingIdx >= 0) {
-          this.alerts[existingIdx] = alert;
-        } else {
-          this.alerts.unshift(alert);
-        }
-      }
+    const highSensors = this.sensors.filter((s) => s.currentDb > this.thresholds.moderateMax);
+    for (const s of highSensors) {
+      const isCritical = s.currentDb > this.thresholds.highMax;
+      this.alerts.push({
+        id: `alert-${s.id}-${Date.now()}`,
+        sensorId: s.id,
+        locationId: s.id,
+        locationName: s.name,
+        cityName: s.cityName,
+        noiseLevelDb: s.currentDb,
+        thresholdDb: isCritical ? this.thresholds.highMax : this.thresholds.moderateMax,
+        severity: isCritical ? 'Critical' : 'High',
+        durationMinutes: isCritical ? 12 : 7,
+        timestamp: new Date().toISOString(),
+        status: 'Active',
+        dataSource: 'SENSOR'
+      });
     }
-    // Limit to latest 30 alerts
-    this.alerts = this.alerts.slice(0, 30);
     this.saveAlerts();
+  }
+
+  // --- Storage Persisters ---
+  private saveCities(): void {
+    localStorage.setItem(STORAGE_KEYS.CITIES, JSON.stringify(this.cities));
+  }
+
+  private saveSensors(): void {
+    localStorage.setItem(STORAGE_KEYS.SENSORS, JSON.stringify(this.sensors));
+  }
+
+  private saveReports(): void {
+    localStorage.setItem(STORAGE_KEYS.REPORTS, JSON.stringify(this.reports));
   }
 
   private saveLocations(): void {
@@ -111,15 +189,13 @@ class DataService {
   }
 
   private saveReadings(): void {
-    // Keep max 1500 readings in localStorage to prevent storage bloat
     if (this.readings.length > 1500) {
       this.readings = this.readings.slice(this.readings.length - 1500);
     }
     try {
       localStorage.setItem(STORAGE_KEYS.READINGS, JSON.stringify(this.readings));
     } catch {
-      // Storage quota safety
-      this.readings = this.readings.slice(this.readings.length - 500);
+      this.readings = this.readings.slice(this.readings.length - 400);
       localStorage.setItem(STORAGE_KEYS.READINGS, JSON.stringify(this.readings));
     }
   }
@@ -128,10 +204,168 @@ class DataService {
     localStorage.setItem(STORAGE_KEYS.ALERTS, JSON.stringify(this.alerts));
   }
 
-  public getLocations(): LocationItem[] {
-    return [...this.locations];
+  // --- City Operations ---
+  public getCities(): CityItem[] {
+    return [...this.cities];
   }
 
+  public getCityById(id: string): CityItem | undefined {
+    return this.cities.find((c) => c.id === id);
+  }
+
+  public addCity(city: Omit<CityItem, 'id'>): CityItem {
+    const newCity: CityItem = {
+      ...city,
+      id: `city-${city.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now().toString().slice(-4)}`
+    };
+    this.cities.push(newCity);
+    this.saveCities();
+    return newCity;
+  }
+
+  public toggleCityStatus(cityId: string): void {
+    this.cities = this.cities.map((c) =>
+      c.id === cityId ? { ...c, enabled: !c.enabled } : c
+    );
+    this.saveCities();
+  }
+
+  // --- Sensor Operations ---
+  public getSensors(cityId?: string): SensorItem[] {
+    if (cityId) {
+      return this.sensors.filter((s) => s.cityId === cityId);
+    }
+    return [...this.sensors];
+  }
+
+  public getSensorById(id: string): SensorItem | undefined {
+    return this.sensors.find((s) => s.id === id);
+  }
+
+  public addSensor(sensorData: Omit<SensorItem, 'id' | 'lastUpdated'>): SensorItem {
+    const city = this.cities.find((c) => c.id === sensorData.cityId);
+    const code = city ? city.name.substring(0, 3).toUpperCase() : 'GEN';
+    const num = String(this.sensors.filter((s) => s.cityId === sensorData.cityId).length + 1).padStart(2, '0');
+    const newSensor: SensorItem = {
+      ...sensorData,
+      id: `NG-${code}-${num}`,
+      lastUpdated: new Date().toISOString()
+    };
+    this.sensors.unshift(newSensor);
+    this.saveSensors();
+    return newSensor;
+  }
+
+  public updateSensor(id: string, updates: Partial<SensorItem>): void {
+    this.sensors = this.sensors.map((s) =>
+      s.id === id ? { ...s, ...updates, lastUpdated: new Date().toISOString() } : s
+    );
+    this.saveSensors();
+  }
+
+  public deleteSensor(id: string): void {
+    this.sensors = this.sensors.filter((s) => s.id !== id);
+    this.saveSensors();
+  }
+
+  // --- Citizen Reports Operations ---
+  public getReports(): CitizenReport[] {
+    return [...this.reports];
+  }
+
+  public getReportById(id: string): CitizenReport | undefined {
+    return this.reports.find((r) => r.id === id);
+  }
+
+  public submitReport(reportData: {
+    city: string;
+    location: string;
+    latitude?: number;
+    longitude?: number;
+    category: CitizenReport['category'];
+    approxNoiseDb?: number;
+    description: string;
+    photoUrl?: string;
+    audioUrl?: string;
+    evidenceName?: string;
+    reporterContact?: string;
+  }): CitizenReport {
+    // Generate human-friendly ID: NG-XXXXXX
+    const randomHex = Math.floor(100000 + Math.random() * 900000).toString();
+    const id = `NG-${randomHex}`;
+
+    const newReport: CitizenReport = {
+      id,
+      city: reportData.city,
+      location: reportData.location,
+      latitude: reportData.latitude,
+      longitude: reportData.longitude,
+      category: reportData.category,
+      approxNoiseDb: reportData.approxNoiseDb,
+      description: reportData.description,
+      photoUrl: reportData.photoUrl,
+      audioUrl: reportData.audioUrl,
+      evidenceName: reportData.evidenceName,
+      timestamp: new Date().toISOString(),
+      status: 'Submitted',
+      priority: (reportData.approxNoiseDb && reportData.approxNoiseDb > 85) ? 'High' : 'Medium',
+      updatedAt: new Date().toISOString(),
+      reporterContact: reportData.reporterContact
+    };
+
+    this.reports.unshift(newReport);
+    this.saveReports();
+    return newReport;
+  }
+
+  public updateReportStatus(
+    id: string,
+    status: ReportStatus,
+    resolutionNotes?: string,
+    rejectionReason?: string,
+    assignedTo?: string
+  ): void {
+    this.reports = this.reports.map((r) => {
+      if (r.id === id) {
+        return {
+          ...r,
+          status,
+          updatedAt: new Date().toISOString(),
+          resolutionNotes: resolutionNotes ?? r.resolutionNotes,
+          rejectionReason: rejectionReason ?? r.rejectionReason,
+          assignedTo: assignedTo ?? r.assignedTo
+        };
+      }
+      return r;
+    });
+    this.saveReports();
+  }
+
+  // --- Smart Alerts Operations ---
+  public getAlerts(): NoiseAlert[] {
+    return [...this.alerts];
+  }
+
+  public acknowledgeAlert(alertId: string): void {
+    this.alerts = this.alerts.map((a) =>
+      a.id === alertId ? { ...a, status: 'Acknowledged' } : a
+    );
+    this.saveAlerts();
+  }
+
+  public resolveAlert(alertId: string): void {
+    this.alerts = this.alerts.map((a) =>
+      a.id === alertId ? { ...a, status: 'Resolved' } : a
+    );
+    this.saveAlerts();
+  }
+
+  public clearAlerts(): void {
+    this.alerts = [];
+    this.saveAlerts();
+  }
+
+  // --- Thresholds Operations ---
   public getThresholds(): ProjectThresholds {
     return { ...this.thresholds };
   }
@@ -146,13 +380,9 @@ class DataService {
     localStorage.setItem(STORAGE_KEYS.THRESHOLDS, JSON.stringify(DEFAULT_THRESHOLDS));
   }
 
-  public getDataMode(): 'SIMULATION' | 'OBSERVED' {
-    return this.dataMode;
-  }
-
-  public setDataMode(mode: 'SIMULATION' | 'OBSERVED'): void {
-    this.dataMode = mode;
-    localStorage.setItem(STORAGE_KEYS.DATA_MODE, mode);
+  // --- Readings Operations ---
+  public getLocations(): LocationItem[] {
+    return [...this.locations];
   }
 
   public getReadings(sourceFilter?: DataSource): NoiseReading[] {
@@ -162,31 +392,15 @@ class DataService {
     return [...this.readings];
   }
 
-  public getLatestReadingsPerLocation(source?: DataSource): Map<string, NoiseReading> {
-    const map = new Map<string, NoiseReading>();
-    const list = source ? this.readings.filter((r) => r.dataSource === source) : this.readings;
-
-    // Iterate backwards
-    for (let i = list.length - 1; i >= 0; i--) {
-      const r = list[i];
-      if (!map.has(r.locationId)) {
-        map.set(r.locationId, r);
-      }
-      if (map.size === this.locations.length) break;
-    }
-    return map;
-  }
-
   public addReading(reading: NoiseReading): NoiseAlert | null {
     this.readings.push(reading);
     this.saveReadings();
 
-    // Check alert
     const evaluatedAlert = evaluateReadingForAlert(reading, this.thresholds, this.alerts);
     if (evaluatedAlert) {
-      const existingIndex = this.alerts.findIndex((a) => a.id === evaluatedAlert.id);
-      if (existingIndex >= 0) {
-        this.alerts[existingIndex] = evaluatedAlert;
+      const existingIdx = this.alerts.findIndex((a) => a.id === evaluatedAlert.id);
+      if (existingIdx >= 0) {
+        this.alerts[existingIdx] = evaluatedAlert;
       } else {
         this.alerts.unshift(evaluatedAlert);
       }
@@ -197,56 +411,91 @@ class DataService {
     return null;
   }
 
-  public getAlerts(): NoiseAlert[] {
-    return [...this.alerts];
+  // --- Admin Authentication Operations ---
+  public isAdminAuthenticated(): boolean {
+    return this.adminUser !== null;
   }
+
+  public getAdminUser(): AdminUser | null {
+    return this.adminUser;
+  }
+
+  public loginAdmin(username: string, password: string): { success: boolean; error?: string } {
+    // Standard secure administrative login check
+    // Default credentials: admin / noiseguard2026
+    const validUsers: Record<string, { pass: string; name: string; role: AdminUser['role'] }> = {
+      admin: { pass: 'noiseguard2026', name: 'Dr. Rajesh Verma', role: 'Super Admin' },
+      officer: { pass: 'cpcb2026', name: 'Priya Sundaram', role: 'Environmental Officer' },
+      researcher: { pass: 'acoustic2026', name: 'Dr. Kevin Roy', role: 'Acoustic Researcher' }
+    };
+
+    const userRecord = validUsers[username.toLowerCase().trim()];
+    if (!userRecord || userRecord.pass !== password) {
+      return { success: false, error: 'Invalid administrator credentials. Access denied.' };
+    }
+
+    const session: AdminUser = {
+      username: username.toLowerCase().trim(),
+      name: userRecord.name,
+      email: `${username}@noiseguard.gov.in`,
+      role: userRecord.role,
+      token: `ng_auth_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+      lastLogin: new Date().toISOString()
+    };
+
+    this.adminUser = session;
+    localStorage.setItem(STORAGE_KEYS.ADMIN_USER, JSON.stringify(session));
+    return { success: true };
+  }
+
+  public logoutAdmin(): void {
+    this.adminUser = null;
+    localStorage.removeItem(STORAGE_KEYS.ADMIN_USER);
+  }
+
+  public getDataMode(): 'SIMULATION' | 'OBSERVED' {
+    return 'SIMULATION';
+  }
+
+  public setDataMode(_mode: 'SIMULATION' | 'OBSERVED'): void {}
 
   public dismissAlert(alertId: string): void {
-    this.alerts = this.alerts.map((a) =>
-      a.id === alertId ? { ...a, status: 'Acknowledged' } : a
-    );
-    this.saveAlerts();
+    this.acknowledgeAlert(alertId);
   }
 
-  public clearAllAlerts(): void {
-    this.alerts = [];
-    this.saveAlerts();
-  }
-
-  public resetToDefaultSeed(): void {
-    this.locations = INITIAL_LOCATIONS;
-    this.readings = generateSeedHistoricalReadings();
-    this.thresholds = DEFAULT_THRESHOLDS;
-    this.generateInitialAlerts();
-    this.saveLocations();
-    this.saveReadings();
+  public getLatestReadingsPerLocation(source?: DataSource): Map<string, NoiseReading> {
+    const map = new Map<string, NoiseReading>();
+    const list = source ? this.readings.filter((r) => r.dataSource === source) : this.readings;
+    for (let i = list.length - 1; i >= 0; i--) {
+      const r = list[i];
+      if (!map.has(r.locationId)) {
+        map.set(r.locationId, r);
+      }
+      if (map.size === this.locations.length) break;
+    }
+    return map;
   }
 
   public importObservedReadings(newReadings: NoiseReading[]): { addedCount: number } {
     this.readings.push(...newReadings);
-    this.readings.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     this.saveReadings();
-
-    // Also evaluate any alerts for the newly imported data
-    newReadings.forEach((r) => {
-      const alert = evaluateReadingForAlert(r, this.thresholds, this.alerts);
-      if (alert) {
-        const existingIdx = this.alerts.findIndex((a) => a.id === alert.id);
-        if (existingIdx >= 0) {
-          this.alerts[existingIdx] = alert;
-        } else {
-          this.alerts.unshift(alert);
-        }
-      }
-    });
-    this.alerts = this.alerts.slice(0, 50);
-    this.saveAlerts();
-
     return { addedCount: newReadings.length };
   }
 
-  public loadSampleObservedData(): void {
-    this.importObservedReadings(SAMPLE_OBSERVED_READINGS);
+  // Reset to initial clean state
+  public resetToDefaultSeed(): void {
+    this.cities = INITIAL_CITIES;
+    this.sensors = INITIAL_SENSORS;
+    this.reports = INITIAL_CITIZEN_REPORTS;
+    this.locations = INITIAL_LOCATIONS;
+    this.readings = generateSeedHistoricalReadings();
+    this.thresholds = DEFAULT_THRESHOLDS;
+    this.generateInitialAlerts();
+    this.saveCities();
+    this.saveSensors();
+    this.saveReports();
+    this.saveLocations();
+    this.saveReadings();
   }
 }
 
