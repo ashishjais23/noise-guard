@@ -5,12 +5,9 @@ import {
   HeartPulse,
   Scale,
   ShieldCheck,
-  HelpCircle,
   ChevronDown,
   ChevronUp,
-  FileText,
-  AlertTriangle,
-  Sparkles
+  FileText
 } from 'lucide-react';
 
 interface FaqItem {

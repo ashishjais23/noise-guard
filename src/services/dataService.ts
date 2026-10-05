@@ -37,9 +37,12 @@ class DataService {
   private alerts: NoiseAlert[] = [];
   private thresholds: ProjectThresholds = DEFAULT_THRESHOLDS;
   private adminUser: AdminUser | null = null;
+  private sensorListeners: Set<(sensors: SensorItem[]) => void> = new Set();
+  private telemetryTimer: any = null;
 
   constructor() {
     this.initializeData();
+    this.startTelemetryLoop();
   }
 
   private initializeData(): void {
@@ -242,6 +245,109 @@ class DataService {
     return this.sensors.find((s) => s.id === id);
   }
 
+  public subscribeToSensors(callback: (sensors: SensorItem[]) => void): () => void {
+    this.sensorListeners.add(callback);
+    callback(this.getSensors());
+    return () => {
+      this.sensorListeners.delete(callback);
+    };
+  }
+
+  private notifySensorsChanged(): void {
+    const latest = this.getSensors();
+    this.sensorListeners.forEach((fn) => {
+      try {
+        fn(latest);
+      } catch (err) {
+        // ignore listener errors
+      }
+    });
+  }
+
+  // Real-time telemetry packet loop (Requirement #22, #23 & #24)
+  private startTelemetryLoop(): void {
+    if (this.telemetryTimer) return;
+    this.telemetryTimer = setInterval(() => {
+      const now = Date.now();
+      let changed = false;
+
+      // 1. Pick 1 or 2 active sensors to simulate receiving fresh telemetry packets
+      if (this.sensors.length > 0) {
+        const randIndex = Math.floor(Math.random() * this.sensors.length);
+        const sensor = this.sensors[randIndex];
+
+        if (sensor && sensor.status !== 'OFFLINE') {
+          // Add natural ambient acoustic fluctuation (-1.2 to +1.2 dB)
+          const delta = (Math.random() - 0.5) * 2.4;
+          const updatedDb = Math.round(Math.max(42, Math.min(94, sensor.currentDb + delta)) * 10) / 10;
+          const updatedPeak = Math.max(sensor.peakDb, updatedDb);
+
+          this.sensors[randIndex] = {
+            ...sensor,
+            currentDb: updatedDb,
+            peakDb: updatedPeak,
+            lastUpdated: new Date().toISOString(),
+            status: 'ONLINE'
+          };
+          changed = true;
+        }
+      }
+
+      // 2. Evaluate status of all sensors based on packet age
+      this.sensors = this.sensors.map((s, idx) => {
+        const packetAgeMs = now - new Date(s.lastUpdated).getTime();
+        // Give demo station at index 4 (e.g. STALE test station) or older packets STALE status
+        let targetStatus: 'ONLINE' | 'STALE' | 'OFFLINE' = s.status;
+        if (packetAgeMs > 90000) {
+          targetStatus = 'OFFLINE';
+        } else if (packetAgeMs > 25000) {
+          targetStatus = 'STALE';
+        } else {
+          targetStatus = 'ONLINE';
+        }
+
+        if (targetStatus !== s.status) {
+          changed = true;
+          return { ...s, status: targetStatus };
+        }
+        return s;
+      });
+
+      if (changed) {
+        this.saveSensors();
+        this.notifySensorsChanged();
+      }
+    }, 3500);
+  }
+
+  // Hardware IoT ingest endpoint simulation (Requirement #22)
+  public ingestSensorPacket(payload: {
+    id: string;
+    currentDb: number;
+    battery?: number;
+    connectivity?: SensorItem['connectivity'];
+  }): SensorItem | null {
+    const index = this.sensors.findIndex((s) => s.id === payload.id);
+    if (index === -1) return null;
+
+    const sensor = this.sensors[index];
+    const updated: SensorItem = {
+      ...sensor,
+      currentDb: Math.round(payload.currentDb * 10) / 10,
+      peakDb: Math.max(sensor.peakDb, payload.currentDb),
+      battery: payload.battery !== undefined ? payload.battery : sensor.battery,
+      connectivity: payload.connectivity || sensor.connectivity,
+      lastUpdated: new Date().toISOString(),
+      status: 'ONLINE',
+      isSimulated: false
+    };
+
+    this.sensors[index] = updated;
+    this.saveSensors();
+    this.notifySensorsChanged();
+    return updated;
+  }
+
   public addSensor(sensorData: Omit<SensorItem, 'id' | 'lastUpdated'>): SensorItem {
     const city = this.cities.find((c) => c.id === sensorData.cityId);
     const code = city ? city.name.substring(0, 3).toUpperCase() : 'GEN';
@@ -253,6 +359,7 @@ class DataService {
     };
     this.sensors.unshift(newSensor);
     this.saveSensors();
+    this.notifySensorsChanged();
     return newSensor;
   }
 
@@ -261,11 +368,13 @@ class DataService {
       s.id === id ? { ...s, ...updates, lastUpdated: new Date().toISOString() } : s
     );
     this.saveSensors();
+    this.notifySensorsChanged();
   }
 
   public deleteSensor(id: string): void {
     this.sensors = this.sensors.filter((s) => s.id !== id);
     this.saveSensors();
+    this.notifySensorsChanged();
   }
 
   // --- Citizen Reports Operations ---

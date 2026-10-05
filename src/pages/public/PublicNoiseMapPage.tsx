@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from 'react-leaflet';
 import L from 'leaflet';
 import {
@@ -7,17 +7,13 @@ import {
   NoiseSeverity,
   NoiseAlert
 } from '../../types';
-import { NoiseStatusBadge } from '../../components/common/NoiseStatusBadge';
+import { InfoButton } from '../../components/common/InfoButton';
 import {
   Search,
   MapPin,
-  Compass,
-  AlertTriangle,
-  RotateCcw,
-  SlidersHorizontal,
   X,
-  Volume2,
-  Navigation
+  Navigation,
+  Layers
 } from 'lucide-react';
 
 interface PublicNoiseMapPageProps {
@@ -31,14 +27,23 @@ interface PublicNoiseMapPageProps {
 // Map center transition helper
 function RecenterMap({ lat, lng, zoom }: { lat: number; lng: number; zoom: number }) {
   const map = useMap();
-  React.useEffect(() => {
+  useEffect(() => {
     map.flyTo([lat, lng], zoom, { duration: 1.2 });
   }, [lat, lng, zoom, map]);
   return null;
 }
 
-// Generate dynamic SVG divIcon for public map
-function createPublicPin(severity: NoiseSeverity, db: number) {
+// Helper to format packet age
+function formatTimeAgo(isoString: string): string {
+  const diffSec = Math.max(1, Math.round((Date.now() - new Date(isoString).getTime()) / 1000));
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  return `${Math.round(diffMin / 60)}h ago`;
+}
+
+// Generate dynamic SVG divIcon for public map with live dB reading
+function createPublicPin(severity: NoiseSeverity, db: number, status: string) {
   const colors = {
     Safe: { bg: '#10b981', border: '#059669', ping: false },
     Moderate: { bg: '#f59e0b', border: '#d97706', ping: false },
@@ -46,15 +51,17 @@ function createPublicPin(severity: NoiseSeverity, db: number) {
     Critical: { bg: '#ef4444', border: '#dc2626', ping: true }
   }[severity];
 
+  const isOnline = status === 'ONLINE';
+
   const html = `
     <div class="relative flex items-center justify-center custom-public-pin">
       ${
-        colors.ping
-          ? `<span class="absolute w-10 h-10 rounded-full ping-animation" style="background-color: ${colors.bg}; opacity: 0.4;"></span>`
+        colors.ping && isOnline
+          ? `<span class="absolute w-10 h-10 rounded-full ping-animation" style="background-color: ${colors.bg}; opacity: 0.35;"></span>`
           : ''
       }
       <div style="background-color: ${colors.bg}; border-color: ${colors.border};" 
-           class="relative z-10 w-9 h-9 rounded-full border-2 text-white font-bold font-mono text-xs flex items-center justify-center shadow-lg">
+           class="relative z-10 w-9 h-9 rounded-full border-2 text-white font-bold font-mono text-xs flex items-center justify-center shadow-lg transition-transform active:scale-95">
         ${Math.round(db)}
       </div>
       <div class="absolute -bottom-1 w-2 h-2 rotate-45" style="background-color: ${colors.border};"></div>
@@ -78,7 +85,8 @@ export const PublicNoiseMapPage: React.FC<PublicNoiseMapPageProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [severityFilter, setSeverityFilter] = useState<'All' | NoiseSeverity>('All');
-  const [selectedSensor, setSelectedSensor] = useState<SensorItem | null>(null);
+  const [selectedSensorId, setSelectedSensorId] = useState<string | null>(null);
+  const [showHeatmap, setShowHeatmap] = useState(true);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'locating' | 'granted' | 'denied'>('idle');
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
 
@@ -86,6 +94,12 @@ export const PublicNoiseMapPage: React.FC<PublicNoiseMapPageProps> = ({
   const citySensors = useMemo(() => {
     return sensors.filter((s) => s.cityId === selectedCity.id);
   }, [sensors, selectedCity.id]);
+
+  // Derived selected sensor that updates automatically with live telemetry
+  const selectedSensor = useMemo(() => {
+    if (!selectedSensorId) return null;
+    return sensors.find((s) => s.id === selectedSensorId) || null;
+  }, [sensors, selectedSensorId]);
 
   // City-level metrics
   const cityAvgDb = useMemo(() => {
@@ -96,11 +110,6 @@ export const PublicNoiseMapPage: React.FC<PublicNoiseMapPageProps> = ({
 
   const citySeverity: NoiseSeverity =
     cityAvgDb <= 65 ? 'Safe' : cityAvgDb <= 75 ? 'Moderate' : cityAvgDb <= 85 ? 'High' : 'Critical';
-
-  const mostNoisySensor = useMemo(() => {
-    if (citySensors.length === 0) return null;
-    return [...citySensors].sort((a, b) => b.currentDb - a.currentDb)[0];
-  }, [citySensors]);
 
   const cityAlertsCount = useMemo(() => {
     return alerts.filter(
@@ -148,20 +157,22 @@ export const PublicNoiseMapPage: React.FC<PublicNoiseMapPageProps> = ({
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-4 pb-12">
       {/* Top Controls: City Selector & Search */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-4 sm:p-6 shadow-xs space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400">
-              Interactive Acoustic Map
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight mt-0.5">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-4 sm:p-5 shadow-xs space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               City Noise Map
             </h1>
+            <InfoButton
+              title="Acoustic Map Info"
+              content="Interactive map displaying telemetry from environmental sound monitoring nodes, updated in real time."
+              size="xs"
+            />
           </div>
 
-          {/* City Selector & GPS Button */}
+          {/* City Selector, GPS & Layer Button */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
               <select
@@ -170,10 +181,10 @@ export const PublicNoiseMapPage: React.FC<PublicNoiseMapPageProps> = ({
                   const c = cities.find((item) => item.id === e.target.value);
                   if (c) {
                     setSelectedCity(c);
-                    setSelectedSensor(null);
+                    setSelectedSensorId(null);
                   }
                 }}
-                className="appearance-none pl-3.5 pr-8 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-2xs"
+                className="appearance-none pl-3 pr-8 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-2xs"
               >
                 {cities.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -192,60 +203,74 @@ export const PublicNoiseMapPage: React.FC<PublicNoiseMapPageProps> = ({
                   ? 'bg-teal-50 text-teal-800 border-teal-300 dark:bg-teal-950/60 dark:text-teal-300 dark:border-teal-800'
                   : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
               }`}
-              title="Locate me via device GPS"
+              title="Locate me via GPS"
             >
               <Navigation className="w-3.5 h-3.5 text-teal-600" />
               <span>{gpsStatus === 'locating' ? 'Locating...' : 'Near Me'}</span>
             </button>
+
+            {/* Heatmap Overlay Toggle */}
+            <button
+              onClick={() => setShowHeatmap((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all border ${
+                showHeatmap
+                  ? 'bg-teal-600 text-white border-teal-600 shadow-2xs'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+              }`}
+              title="Toggle acoustic dispersion heatmap"
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Heatmap</span>
+            </button>
           </div>
         </div>
 
-        {/* City Summary Banner (Requirement #13) */}
-        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200/60 dark:border-slate-800 grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {/* City Summary Banner (Compact, Requirement #20 & #21) */}
+        <div className="p-3 sm:p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200/60 dark:border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <div>
-            <span className="text-[11px] text-slate-400 dark:text-slate-500 block">Selected City</span>
-            <span className="text-sm font-bold text-slate-900 dark:text-white">{selectedCity.name}</span>
-          </div>
-
-          <div>
-            <span className="text-[11px] text-slate-400 dark:text-slate-500 block">Average Noise</span>
+            <span className="text-[11px] text-slate-400 block">Current City Noise</span>
             <div className="flex items-baseline gap-1 mt-0.5">
-              <span className="text-sm font-extrabold font-mono text-slate-900 dark:text-white">
+              <span className="text-base font-black font-mono text-slate-900 dark:text-white">
                 {cityAvgDb} dB
               </span>
-              <NoiseStatusBadge severity={citySeverity} size="sm" showIcon={false} />
+              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                {citySeverity}
+              </span>
             </div>
           </div>
 
           <div>
-            <span className="text-[11px] text-slate-400 dark:text-slate-500 block">Monitoring Points</span>
-            <span className="text-sm font-bold text-slate-900 dark:text-white">
-              {citySensors.length} active
-            </span>
+            <span className="text-[11px] text-slate-400 block">Active Sensors</span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="font-bold text-slate-900 dark:text-white">
+                {citySensors.length} stations
+              </span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            </div>
           </div>
 
           <div>
-            <span className="text-[11px] text-slate-400 dark:text-slate-500 block">Active Alerts</span>
-            <span className="text-sm font-bold text-orange-600 dark:text-orange-400">
+            <span className="text-[11px] text-slate-400 block">Active Alerts</span>
+            <span className="font-bold text-orange-600 dark:text-orange-400 mt-0.5 block">
               {cityAlertsCount} alerts
             </span>
           </div>
 
-          <div className="col-span-2 sm:col-span-1">
-            <span className="text-[11px] text-slate-400 dark:text-slate-500 block">Most Noisy Area</span>
-            <span className="text-sm font-bold text-slate-900 dark:text-white truncate block">
-              {mostNoisySensor ? mostNoisySensor.name : 'Corridor'}
+          <div>
+            <span className="text-[11px] text-slate-400 block">Data Transparency</span>
+            <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mt-0.5 block">
+              Simulated monitoring data
             </span>
           </div>
         </div>
 
         {/* Search & Severity Filters */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-          <div className="relative flex-1 min-w-[220px]">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder={`Search locations in ${selectedCity.name}...`}
+              placeholder={`Search areas in ${selectedCity.name}...`}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-1 focus:ring-teal-500"
@@ -268,22 +293,10 @@ export const PublicNoiseMapPage: React.FC<PublicNoiseMapPageProps> = ({
             ))}
           </div>
         </div>
-
-        {gpsStatus === 'denied' && (
-          <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-[11px] text-slate-600 dark:text-slate-400 flex items-center justify-between">
-            <span>Location access is disabled. Please select your city manually from the menu above.</span>
-            <button
-              onClick={() => setGpsStatus('idle')}
-              className="text-slate-400 hover:text-slate-600"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Map Canvas */}
-      <div className="relative rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800 shadow-md h-[550px] bg-slate-100 dark:bg-slate-950">
+      <div className="relative rounded-3xl overflow-hidden border border-slate-200/80 dark:border-slate-800 shadow-md h-[560px] bg-slate-100 dark:bg-slate-950">
         <MapContainer
           center={[selectedCity.latitude, selectedCity.longitude]}
           zoom={selectedCity.defaultZoom}
@@ -306,9 +319,37 @@ export const PublicNoiseMapPage: React.FC<PublicNoiseMapPageProps> = ({
             <Circle
               center={[userCoords.lat, userCoords.lng]}
               radius={350}
-              pathOptions={{ color: '#0d9488', fillColor: '#14b8a6', fillOpacity: 0.3 }}
+              pathOptions={{ color: '#0d9488', fillColor: '#14b8a6', fillOpacity: 0.35 }}
             />
           )}
+
+          {/* Acoustic dispersion heat circles around sensors */}
+          {showHeatmap &&
+            displayedSensors.map((sensor) => {
+              const color =
+                sensor.currentDb <= 65
+                  ? '#10b981'
+                  : sensor.currentDb <= 75
+                  ? '#f59e0b'
+                  : sensor.currentDb <= 85
+                  ? '#f97316'
+                  : '#ef4444';
+              const radius = Math.max(300, (sensor.currentDb - 40) * 18);
+
+              return (
+                <Circle
+                  key={`heat-${sensor.id}`}
+                  center={[sensor.latitude, sensor.longitude]}
+                  radius={radius}
+                  pathOptions={{
+                    color,
+                    fillColor: color,
+                    fillOpacity: 0.18,
+                    stroke: false
+                  }}
+                />
+              );
+            })}
 
           {/* Sensor Pins */}
           {displayedSensors.map((sensor) => {
@@ -325,29 +366,41 @@ export const PublicNoiseMapPage: React.FC<PublicNoiseMapPageProps> = ({
               <Marker
                 key={sensor.id}
                 position={[sensor.latitude, sensor.longitude]}
-                icon={createPublicPin(severity, sensor.currentDb)}
+                icon={createPublicPin(severity, sensor.currentDb, sensor.status)}
                 eventHandlers={{
-                  click: () => setSelectedSensor(sensor)
+                  click: () => setSelectedSensorId(sensor.id)
                 }}
               >
                 <Popup className="public-map-popup">
-                  <div className="p-2 min-w-[180px]">
-                    <div className="flex items-center justify-between gap-1 mb-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">
-                        {sensor.locationType}
+                  <div className="p-2 min-w-[190px] space-y-1.5">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400">
+                      <span className="font-bold">{sensor.id}</span>
+                      <span className="font-semibold text-emerald-600">
+                        {sensor.isSimulated === false ? 'Live Sensor' : 'Simulated data'}
                       </span>
-                      <NoiseStatusBadge severity={severity} size="sm" showIcon={false} />
                     </div>
-                    <h4 className="text-xs font-bold text-slate-900">{sensor.name}</h4>
-                    <div className="mt-2 flex items-baseline gap-1">
-                      <span className="text-xl font-black font-mono text-slate-900">
+
+                    <h4 className="text-xs font-bold text-slate-900 leading-tight">
+                      {sensor.name}
+                    </h4>
+
+                    <div className="flex items-baseline gap-1 py-0.5">
+                      <span className="text-2xl font-black font-mono text-slate-900">
                         {sensor.currentDb}
                       </span>
-                      <span className="text-xs text-slate-500">dB</span>
+                      <span className="text-xs text-slate-400 font-semibold">dB</span>
+                      <span className="ml-auto text-[10px] font-mono text-slate-400">
+                        {formatTimeAgo(sensor.lastUpdated)}
+                      </span>
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-1">{sensor.noiseType}</p>
+
+                    <div className="flex justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+                      <span>Avg: {sensor.avgDb} dB</span>
+                      <span>Peak: {sensor.peakDb} dB</span>
+                    </div>
+
                     <button
-                      onClick={() => setSelectedSensor(sensor)}
+                      onClick={() => setSelectedSensorId(sensor.id)}
                       className="mt-2 w-full py-1 text-[11px] font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700"
                     >
                       View Details
@@ -359,11 +412,18 @@ export const PublicNoiseMapPage: React.FC<PublicNoiseMapPageProps> = ({
           })}
         </MapContainer>
 
-        {/* Floating Map Legend */}
-        <div className="absolute bottom-4 left-4 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-lg text-[11px] space-y-1.5">
-          <span className="font-bold text-slate-800 dark:text-slate-200 block text-[10px] uppercase">
-            Acoustic Legend
-          </span>
+        {/* Compact Legend (Requirement #19) */}
+        <div className="absolute bottom-4 left-4 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-md text-[11px] space-y-1">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <span className="font-bold uppercase tracking-wider text-[10px] text-slate-400">
+              Legend
+            </span>
+            <InfoButton
+              title="Noise Thresholds"
+              content="🟢 Safe (<65 dB), 🟡 Moderate (65-75 dB), 🟠 High (75-85 dB), 🔴 Critical (>85 dB)."
+              size="xs"
+            />
+          </div>
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
             <span className="text-slate-600 dark:text-slate-300">Safe (&lt;65 dB)</span>
@@ -382,62 +442,73 @@ export const PublicNoiseMapPage: React.FC<PublicNoiseMapPageProps> = ({
           </div>
         </div>
 
-        {/* Selected Sensor Slide Drawer */}
+        {/* Selected Sensor Drawer (Requirement #21 & #23) */}
         {selectedSensor && (
-          <div className="absolute top-4 right-4 z-20 w-80 max-w-[calc(100%-2rem)] bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl space-y-3 animate-in slide-in-from-right-3 duration-200">
+          <div className="absolute top-4 right-4 z-20 w-80 max-w-[calc(100%-2rem)] bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl space-y-3 animate-in slide-in-from-right-3 duration-150">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400">
-                  {selectedSensor.locationType}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono font-bold text-teal-600 dark:text-teal-400">
+                    {selectedSensor.id}
+                  </span>
+                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                    selectedSensor.status === 'ONLINE'
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                      : selectedSensor.status === 'STALE'
+                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                      : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                  }`}>
+                    {selectedSensor.status}
+                  </span>
+                </div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
                   {selectedSensor.name}
                 </h3>
               </div>
               <button
-                onClick={() => setSelectedSensor(null)}
+                onClick={() => setSelectedSensorId(null)}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Reading details */}
+            {/* Reading details with live update */}
             <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div>
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 block">Current dB</span>
+                <span className="text-[10px] text-slate-400 block">Current Reading</span>
                 <div className="flex items-baseline gap-1 mt-0.5">
                   <span className="text-2xl font-black font-mono text-slate-900 dark:text-white">
                     {selectedSensor.currentDb}
                   </span>
-                  <span className="text-xs text-slate-400">dB</span>
+                  <span className="text-xs text-slate-400 font-semibold">dB</span>
                 </div>
               </div>
-              <NoiseStatusBadge
-                severity={
-                  selectedSensor.currentDb <= 65
-                    ? 'Safe'
-                    : selectedSensor.currentDb <= 75
-                    ? 'Moderate'
-                    : selectedSensor.currentDb <= 85
-                    ? 'High'
-                    : 'Critical'
-                }
-                size="sm"
-              />
+              <div className="text-right">
+                <span className="text-[10px] font-mono text-slate-400 block">
+                  Updated {formatTimeAgo(selectedSensor.lastUpdated)}
+                </span>
+                <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400">
+                  {selectedSensor.isSimulated === false ? 'Live Sensor' : 'Simulated data'}
+                </span>
+              </div>
             </div>
 
             <div className="space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
               <div className="flex justify-between">
-                <span className="text-slate-400">Average Level:</span>
+                <span className="text-slate-400">Average:</span>
                 <span className="font-semibold text-slate-800 dark:text-slate-200">{selectedSensor.avgDb} dB</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Peak Level:</span>
+                <span className="text-slate-400">Peak:</span>
                 <span className="font-semibold text-slate-800 dark:text-slate-200">{selectedSensor.peakDb} dB</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Noise Source:</span>
+                <span className="text-slate-400">Zone Type:</span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{selectedSensor.locationType}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Primary Noise:</span>
                 <span className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[140px] text-right">
                   {selectedSensor.noiseType}
                 </span>

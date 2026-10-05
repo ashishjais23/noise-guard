@@ -15,9 +15,7 @@ import {
   Calendar,
   X,
   Battery,
-  Wifi,
-  ShieldCheck,
-  RotateCcw
+  Wifi
 } from 'lucide-react';
 
 interface AdminAdvancedMapPageProps {

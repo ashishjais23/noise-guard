@@ -1,18 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import {
-  Bell,
-  CheckCircle2,
-  AlertTriangle,
-  Flame,
-  SlidersHorizontal,
-  Clock,
-  ShieldCheck,
-  Search,
-  Filter,
-  RotateCcw,
-  X
-} from 'lucide-react';
-import { NoiseAlert, ProjectThresholds, NoiseSeverity } from '../../types';
+import { SlidersHorizontal, X } from 'lucide-react';
+import { NoiseAlert, ProjectThresholds } from '../../types';
 import { NoiseStatusBadge } from '../../components/common/NoiseStatusBadge';
 
 interface AdminAlertsPageProps {

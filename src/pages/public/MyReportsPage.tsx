@@ -1,18 +1,12 @@
 import React, { useState } from 'react';
 import {
   Inbox,
-  FileText,
-  Clock,
   MapPin,
-  CheckCircle2,
-  AlertCircle,
-  XCircle,
-  ArrowRight,
   Search,
   X,
   FilePlus2,
-  ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  ArrowRight
 } from 'lucide-react';
 import { CitizenReport, ReportStatus } from '../../types';
 import { PublicPageId } from '../../components/layout/PublicHeader';

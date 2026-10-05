@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { NoiseReading, DataSource } from '../../types';
-import { Upload, Download, CheckCircle, AlertCircle, FileText, Check } from 'lucide-react';
+import { Upload, Download, CheckCircle, AlertCircle, Check } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 
 interface CsvImportModalProps {
@@ -27,7 +27,6 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
   onImportComplete
 }) => {
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
-  const [rawText, setRawText] = useState('');
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
 
@@ -64,7 +63,6 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
   };
 
   const parseCsv = (text: string) => {
-    setRawText(text);
     setGeneralError(null);
     const lines = text.trim().split(/\r?\n/);
     if (lines.length < 2) {

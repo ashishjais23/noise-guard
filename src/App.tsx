@@ -76,6 +76,14 @@ export function App() {
     setAdminUser(dataService.getAdminUser());
   }, []);
 
+  // Real-time sensor telemetry subscription
+  useEffect(() => {
+    const unsubscribe = dataService.subscribeToSensors((updatedSensors) => {
+      setSensors(updatedSensors);
+    });
+    return () => unsubscribe();
+  }, []);
+
   // Handle URL history state
   useEffect(() => {
     const handlePopState = () => {

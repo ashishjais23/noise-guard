@@ -47,6 +47,7 @@ export interface SensorItem {
   peakDb: number;
   noiseType: string;
   lastUpdated: string; // ISO string
+  isSimulated?: boolean;
 }
 
 export interface LocationItem {

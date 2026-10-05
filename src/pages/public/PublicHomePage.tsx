@@ -3,19 +3,17 @@ import {
   Mic,
   MapPin,
   FilePlus2,
-  Volume2,
+  BookOpen,
   ArrowRight,
   ShieldCheck,
-  AlertTriangle,
-  Info,
   Activity,
+  Volume2,
   CheckCircle2,
-  Radio,
-  Search
+  Radio
 } from 'lucide-react';
 import { PublicPageId } from '../../components/layout/PublicHeader';
 import { CityItem, SensorItem, NoiseSeverity } from '../../types';
-import { NoiseStatusBadge } from '../../components/common/NoiseStatusBadge';
+import { InfoButton } from '../../components/common/InfoButton';
 
 interface PublicHomePageProps {
   setActivePage: (page: PublicPageId) => void;
@@ -32,359 +30,255 @@ export const PublicHomePage: React.FC<PublicHomePageProps> = ({
   selectedCity,
   setSelectedCity
 }) => {
-  // Get sensors for the currently selected city
-  const citySensors = sensors.filter((s) => s.cityId === selectedCity.id);
-  const cityAvgDb = citySensors.length > 0
-    ? Math.round((citySensors.reduce((acc, s) => acc + s.currentDb, 0) / citySensors.length) * 10) / 10
-    : selectedCity.baselineAvgDb;
+  // Curated showcase cities (Requirement #16)
+  const targetCityNames = ['Delhi', 'Mumbai', 'Chennai', 'Jalandhar'];
+  const showcaseCities = targetCityNames
+    .map((name) => cities.find((c) => c.name.toLowerCase() === name.toLowerCase()))
+    .filter(Boolean) as CityItem[];
 
-  const citySeverity: NoiseSeverity =
-    cityAvgDb <= 65 ? 'Safe' : cityAvgDb <= 75 ? 'Moderate' : cityAvgDb <= 85 ? 'High' : 'Critical';
+  // Fallback to first 4 cities if names not found
+  const displayCities = showcaseCities.length >= 4 ? showcaseCities : cities.slice(0, 4);
+
+  // Helper to determine severity dot and label
+  const getSeverityInfo = (db: number): { label: NoiseSeverity; dot: string } => {
+    if (db <= 65) return { label: 'Safe', dot: 'bg-emerald-500' };
+    if (db <= 75) return { label: 'Moderate', dot: 'bg-amber-500' };
+    if (db <= 85) return { label: 'High', dot: 'bg-orange-500' };
+    return { label: 'Critical', dot: 'bg-rose-500' };
+  };
+
+  // Nearest / sample baseline estimate for hero
+  const heroEstimateDb = selectedCity ? Math.round(selectedCity.baselineAvgDb) : 68;
+  const heroSeverity = getSeverityInfo(heroEstimateDb);
 
   return (
-    <div className="space-y-12 sm:space-y-16 pb-12">
-      {/* 1. Hero Section: "Know Your Noise." */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-teal-50/70 via-white to-slate-50 dark:from-slate-800/60 dark:via-slate-900 dark:to-slate-900 border border-teal-100/80 dark:border-slate-800 p-6 sm:p-10 lg:p-14 shadow-xs transition-colors">
-        <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-100/70 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 text-teal-900 dark:text-teal-300 text-xs font-semibold mb-6">
-            <Radio className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 animate-pulse" />
-            <span>Civic Environmental Acoustic Platform</span>
-          </div>
-
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-[1.1]">
+    <div className="max-w-3xl mx-auto px-4 py-4 sm:py-8 space-y-12 sm:space-y-16 pb-16">
+      {/* 1. Hero Section (Requirement #15 & #35) */}
+      <section className="text-center space-y-6 pt-2">
+        <div className="space-y-2">
+          <h1 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight uppercase">
             Know Your Noise.
           </h1>
-
-          <p className="mt-5 text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed font-normal max-w-2xl">
-            Monitor noise levels around you, explore noisy areas in your city, and report excessive acoustic pollution in your community.
+          <p className="text-sm sm:text-base font-medium text-slate-500 dark:text-slate-400">
+            Measure. Understand. Report.
           </p>
-
-          {/* Primary Action Buttons */}
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => setActivePage('monitor')}
-              className="flex items-center gap-2.5 px-6 py-3.5 text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 rounded-xl shadow-md shadow-teal-600/20 transition-all focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
-            >
-              <Mic className="w-4 h-4" />
-              <span>Start Monitoring</span>
-            </button>
-
-            <button
-              onClick={() => setActivePage('map')}
-              className="flex items-center gap-2.5 px-6 py-3.5 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xs transition-all"
-            >
-              <MapPin className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-              <span>Explore Noise Map</span>
-            </button>
-
-            <button
-              onClick={() => setActivePage('report')}
-              className="flex items-center gap-2.5 px-6 py-3.5 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xs transition-all"
-            >
-              <FilePlus2 className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-              <span>Report Noise</span>
-            </button>
-          </div>
         </div>
 
-        {/* Live City Snapshot Banner */}
-        <div className="mt-10 pt-8 border-t border-slate-200/80 dark:border-slate-800">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                City Noise Snapshot:
+        {/* Hero Measurement Circle / Card */}
+        <div className="py-2 flex flex-col items-center justify-center">
+          <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-full border-4 border-amber-200 dark:border-amber-800/80 bg-amber-50/40 dark:bg-amber-950/20 flex flex-col items-center justify-center shadow-inner relative transition-transform">
+            <div className="flex items-baseline justify-center gap-1">
+              <span className="text-6xl sm:text-7xl font-black font-mono tracking-tight text-slate-900 dark:text-white">
+                {heroEstimateDb}
               </span>
-              <select
-                value={selectedCity.id}
-                onChange={(e) => {
-                  const found = cities.find((c) => c.id === e.target.value);
-                  if (found) setSelectedCity(found);
-                }}
-                className="text-xs font-semibold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              >
-                {cities.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.state})
-                  </option>
-                ))}
-              </select>
+              <span className="text-lg font-bold text-slate-400">dB</span>
+              <InfoButton
+                title="What does this mean?"
+                content={`${heroEstimateDb} dB means the ambient sound is currently moderately loud, typical of active daytime traffic or normal neighborhood activity.`}
+                size="sm"
+                className="absolute top-8 right-10"
+              />
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500 dark:text-slate-400">City Status:</span>
-              <NoiseStatusBadge severity={citySeverity} size="sm" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white dark:bg-slate-850 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-              <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 block">
-                Current Average
-              </span>
-              <div className="mt-1 flex items-baseline gap-1">
-                <span className="text-2xl font-extrabold font-mono text-slate-900 dark:text-white">
-                  {cityAvgDb}
-                </span>
-                <span className="text-xs font-medium text-slate-500">dB</span>
-              </div>
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/90 dark:bg-slate-900/90 shadow-2xs border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300">
+              <span className={`w-2 h-2 rounded-full ${heroSeverity.dot}`} />
+              <span>{heroSeverity.label} Noise</span>
             </div>
 
-            <div className="bg-white dark:bg-slate-850 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-              <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 block">
-                Monitoring Points
-              </span>
-              <div className="mt-1 flex items-baseline gap-1">
-                <span className="text-2xl font-extrabold font-mono text-slate-900 dark:text-white">
-                  {citySensors.length}
-                </span>
-                <span className="text-xs font-medium text-slate-500">sensors</span>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-slate-850 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-              <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 block">
-                Most Noisy Area
-              </span>
-              <div className="mt-1 text-sm font-bold text-slate-900 dark:text-white truncate">
-                {citySensors.length > 0
-                  ? [...citySensors].sort((a, b) => b.currentDb - a.currentDb)[0].name
-                  : 'Transit Corridor'}
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-slate-850 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-              <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 block">
-                Peak Noise Window
-              </span>
-              <div className="mt-1 text-sm font-bold text-slate-900 dark:text-white">
-                6:00 PM – 9:30 PM
-              </div>
+            <div className="mt-2 flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              <MapPin className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+              <span>{selectedCity ? selectedCity.name : 'Near You'}</span>
             </div>
           </div>
         </div>
 
-        {/* Device Measurement vs Sensor Transparency Banner */}
-        <div className="mt-6 p-4 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 flex items-start gap-3 text-xs text-amber-900 dark:text-amber-200">
-          <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-          <p className="leading-relaxed">
-            <strong>Measurement Transparency:</strong> Live monitoring uses your smartphone or computer microphone to calculate an <em>estimated decibel level</em>. For calibrated environmental enforcement, city telemetry is cross-referenced with CPCB-standard acoustic monitoring stations.
-          </p>
-        </div>
-      </section>
-
-      {/* 2. Three Simple Questions for Citizens */}
-      <section className="space-y-6">
-        <div className="text-center max-w-xl mx-auto">
-          <h2 className="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider">
-            HOW NOISEGUARD HELPS YOU
-          </h2>
-          <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight mt-1">
-            Three Simple Answers
-          </h3>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Engineered to answer the most important acoustic questions in seconds
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {/* Question 1 */}
-          <div
+        {/* Primary Action Button */}
+        <div>
+          <button
             onClick={() => setActivePage('monitor')}
-            className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+            className="w-full sm:w-auto min-w-[240px] px-8 py-4 text-base font-bold text-white bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-600 rounded-2xl shadow-lg shadow-teal-600/20 active:scale-98 transition-all inline-flex items-center justify-center gap-2"
           >
-            <div>
-              <div className="w-11 h-11 rounded-2xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center mb-4">
-                <Mic className="w-5 h-5" />
-              </div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400">
-                Question 1
-              </span>
-              <h4 className="text-lg font-bold text-slate-900 dark:text-white mt-1 mb-2">
-                "How noisy is it here right now?"
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Use your device's microphone to instantly estimate the decibel level in your room, office, or outdoor street with immediate plain-language health context.
-              </p>
-            </div>
-            <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1 text-xs font-semibold text-teal-600 dark:text-teal-400 group-hover:translate-x-1 transition-transform">
-              <span>Start Live Measurement</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </div>
-          </div>
-
-          {/* Question 2 */}
-          <div
-            onClick={() => setActivePage('map')}
-            className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs hover:border-teal-300 dark:hover:border-teal-700 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
-          >
-            <div>
-              <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4">
-                <MapPin className="w-5 h-5" />
-              </div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                Question 2
-              </span>
-              <h4 className="text-lg font-bold text-slate-900 dark:text-white mt-1 mb-2">
-                "Where are the noisy areas?"
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Explore an interactive map of Indian cities to locate traffic hotspots, construction zones, calm residential colonies, and hospital silence corridors.
-              </p>
-            </div>
-            <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 group-hover:translate-x-1 transition-transform">
-              <span>Explore Interactive Map</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </div>
-          </div>
-
-          {/* Question 3 */}
-          <div
-            onClick={() => setActivePage('report')}
-            className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs hover:border-orange-300 dark:hover:border-orange-700 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
-          >
-            <div>
-              <div className="w-11 h-11 rounded-2xl bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 flex items-center justify-center mb-4">
-                <FilePlus2 className="w-5 h-5" />
-              </div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400">
-                Question 3
-              </span>
-              <h4 className="text-lg font-bold text-slate-900 dark:text-white mt-1 mb-2">
-                "What can I do about excessive noise?"
-              </h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Submit a citizen acoustic report in under 60 seconds with photos or audio evidence. Receive an official Report ID and track municipal investigation progress.
-              </p>
-            </div>
-            <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1 text-xs font-semibold text-orange-600 dark:text-orange-400 group-hover:translate-x-1 transition-transform">
-              <span>Report a Noise Problem</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 3. Decibel Scale Guide for Everyday Citizens */}
-      <section className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 sm:p-8 shadow-xs">
-        <div className="max-w-2xl">
-          <h2 className="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider">
-            UNDERSTANDING DECIBELS
-          </h2>
-          <h3 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight mt-1">
-            Noise Scale Guide
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Decibels (dB) measure sound intensity on a logarithmic scale. An increase of 10 dB sounds twice as loud to human ears.
-          </p>
+            <Mic className="w-5 h-5 fill-white" />
+            <span>Start Monitoring</span>
+          </button>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-4 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">🟢 SAFE</span>
-              <span className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-300">&lt; 65 dB</span>
-            </div>
-            <p className="text-xs text-emerald-900 dark:text-emerald-200 font-semibold mt-2">
-              Whisper, Library &amp; Living Room
-            </p>
-            <p className="text-[11px] text-emerald-700 dark:text-emerald-300 mt-1 leading-relaxed">
-              Normal conversation level. Completely comfortable for continuous work and peaceful sleep.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-800 dark:text-amber-300">🟡 MODERATE</span>
-              <span className="text-xs font-mono font-bold text-amber-700 dark:text-amber-300">65 – 75 dB</span>
-            </div>
-            <p className="text-xs text-amber-900 dark:text-amber-200 font-semibold mt-2">
-              Busy Market &amp; Normal Street Traffic
-            </p>
-            <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-1 leading-relaxed">
-              Audible background noise. May reduce sleep quality if sustained through night hours.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-orange-50/70 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/80">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-orange-800 dark:text-orange-300">🟠 HIGH NOISE</span>
-              <span className="text-xs font-mono font-bold text-orange-700 dark:text-orange-300">75 – 85 dB</span>
-            </div>
-            <p className="text-xs text-orange-900 dark:text-orange-200 font-semibold mt-2">
-              Heavy Highway Traffic &amp; Buses
-            </p>
-            <p className="text-[11px] text-orange-700 dark:text-orange-300 mt-1 leading-relaxed">
-              Loud. Requires shouting to be heard. Associated with heightened stress and sleep disturbance.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-rose-50/70 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/80">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-rose-800 dark:text-rose-300">🔴 CRITICAL</span>
-              <span className="text-xs font-mono font-bold text-rose-700 dark:text-rose-300">&gt; 85 dB</span>
-            </div>
-            <p className="text-xs text-rose-900 dark:text-rose-200 font-semibold mt-2">
-              Jackhammer, Air Horns &amp; Generators
-            </p>
-            <p className="text-[11px] text-rose-700 dark:text-rose-300 mt-1 leading-relaxed">
-              Potentially harmful. Sustained exposure can cause auditory fatigue and permanent hearing risk.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. Supported Indian Cities Row */}
-      <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-              Covered Indian Metropolitan Cities
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Select any city to view sensor coverage and active acoustic readings
-            </p>
-          </div>
+        {/* Three Small Actions */}
+        <div className="flex items-center justify-center gap-2 sm:gap-3 pt-2">
           <button
             onClick={() => setActivePage('map')}
-            className="text-xs font-semibold text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1 self-start sm:self-center"
+            className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs transition-all flex items-center justify-center gap-1.5"
           >
-            <span>Open All Cities on Map</span>
+            <MapPin className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+            <span>Map</span>
+          </button>
+
+          <button
+            onClick={() => setActivePage('report')}
+            className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs transition-all flex items-center justify-center gap-1.5"
+          >
+            <FilePlus2 className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+            <span>Report</span>
+          </button>
+
+          <button
+            onClick={() => setActivePage('learn')}
+            className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs transition-all flex items-center justify-center gap-1.5"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span>Learn</span>
+          </button>
+        </div>
+      </section>
+
+      {/* 2. Noise Around You (Requirement #16) */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+              Noise Around You
+            </h2>
+            <InfoButton
+              title="City Noise Data"
+              content="Readings represent ambient sound averages from city monitoring nodes and calibrated baseline telemetry."
+              size="xs"
+            />
+          </div>
+
+          <button
+            onClick={() => setActivePage('map')}
+            className="text-xs font-bold text-teal-600 dark:text-teal-400 hover:underline flex items-center gap-1"
+          >
+            <span>Explore Full Map</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {cities.slice(0, 10).map((c) => {
-            const count = sensors.filter((s) => s.cityId === c.id).length;
-            const isSelected = selectedCity.id === c.id;
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {displayCities.map((city) => {
+            const citySensors = sensors.filter((s) => s.cityId === city.id);
+            const avgDb = citySensors.length > 0
+              ? Math.round(citySensors.reduce((a, b) => a + b.currentDb, 0) / citySensors.length)
+              : Math.round(city.baselineAvgDb);
+            const severity = getSeverityInfo(avgDb);
+
             return (
               <div
-                key={c.id}
+                key={city.id}
                 onClick={() => {
-                  setSelectedCity(c);
+                  setSelectedCity(city);
                   setActivePage('map');
                 }}
-                className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
-                  isSelected
-                    ? 'bg-teal-50 dark:bg-teal-950/60 border-teal-300 dark:border-teal-700 shadow-xs'
-                    : 'bg-white dark:bg-slate-850 border-slate-200/80 dark:border-slate-800 hover:border-teal-200 dark:hover:border-slate-700'
-                }`}
+                className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-teal-300 dark:hover:border-teal-700 transition-all cursor-pointer shadow-2xs group"
               >
                 <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                    {c.name}
-                  </h4>
-                  <span className="text-[10px] font-mono text-slate-400">{c.baselineAvgDb} dB</span>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400">
+                    {city.name}
+                  </h3>
+                  <span className={`w-2 h-2 rounded-full ${severity.dot}`} />
                 </div>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
-                  {c.state}
-                </span>
-                <span className="mt-2 inline-block text-[10px] font-semibold text-teal-700 dark:text-teal-300">
-                  {count} sensor points
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-2xl font-black font-mono text-slate-900 dark:text-white">
+                    {avgDb}
+                  </span>
+                  <span className="text-xs text-slate-400 font-semibold">dB</span>
+                </div>
+                <span className="text-[10px] text-slate-400 block mt-1">
+                  {severity.label}
                 </span>
               </div>
             );
           })}
+        </div>
+      </section>
+
+      {/* 3. How NoiseGuard Works (Requirement #16) */}
+      <section className="space-y-4 pt-2">
+        <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white text-center sm:text-left">
+          How NoiseGuard Works
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0 font-bold text-sm">
+              1
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-900 dark:text-white">
+                Measure
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                Estimate real-time decibels using your browser microphone with zero data sent to external servers.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 font-bold text-sm">
+              2
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-900 dark:text-white">
+                Understand
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                Explore noise severity across residential, commercial, and healthcare silence corridors.
+              </p>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-950/60 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0 font-bold text-sm">
+              3
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-900 dark:text-white">
+                Report
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                Flag excessive sound violations with optional photo or audio evidence in 60 seconds.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 4. Why NoiseGuard? (Requirement #16) */}
+      <section className="space-y-4 pt-2">
+        <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white text-center sm:text-left">
+          Why NoiseGuard?
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 space-y-1">
+            <ShieldCheck className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+            <h3 className="text-xs font-bold text-slate-900 dark:text-white">
+              Privacy First
+            </h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              Live microphone audio is processed locally in your browser. We never record or store conversations.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 space-y-1">
+            <Activity className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <h3 className="text-xs font-bold text-slate-900 dark:text-white">
+              Honest Data
+            </h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              We distinguish physical IoT sensors from device estimates, always transparent about data origins.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 space-y-1">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <h3 className="text-xs font-bold text-slate-900 dark:text-white">
+              Civic Action
+            </h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              Empowering citizens and municipal officers to make neighborhoods quieter, healthier, and safer.
+            </p>
+          </div>
         </div>
       </section>
     </div>
