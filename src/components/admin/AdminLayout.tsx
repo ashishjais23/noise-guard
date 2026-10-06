@@ -54,7 +54,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
 
-  const navItems = [
+  // Define all available navigation tabs
+  const allNavItems = [
     { id: 'dashboard' as AdminPageId, label: 'Overview Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'monitoring' as AdminPageId, label: 'Live Sensor Telemetry', icon: <Activity className="w-4 h-4" /> },
     { id: 'map' as AdminPageId, label: 'Advanced GIS Map', icon: <MapPin className="w-4 h-4" /> },
@@ -75,6 +76,18 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     { id: 'cities' as AdminPageId, label: 'City Management', icon: <Building2 className="w-4 h-4" /> },
     { id: 'analytics' as AdminPageId, label: 'Analytics & Comparison', icon: <BarChart3 className="w-4 h-4" /> }
   ];
+
+  // RBAC Navigation filtering
+  const navItems = allNavItems.filter((item) => {
+    if (adminUser.role === 'Super Admin') return true;
+    if (adminUser.role === 'Environmental Officer') {
+      return ['dashboard', 'monitoring', 'map', 'reports', 'alerts'].includes(item.id);
+    }
+    if (adminUser.role === 'Acoustic Researcher') {
+      return ['dashboard', 'monitoring', 'map', 'analytics', 'reports'].includes(item.id);
+    }
+    return true;
+  });
 
   const handleNavSelect = (id: AdminPageId) => {
     setActivePage(id);
@@ -121,14 +134,26 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             <div className="flex items-center gap-2 sm:gap-3">
               {/* User Identity Chip */}
               <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
-                <div className="w-6 h-6 rounded-full bg-teal-600 text-white font-bold flex items-center justify-center text-[11px]">
+                <div className={`w-6 h-6 rounded-full font-bold flex items-center justify-center text-[11px] text-white ${
+                  adminUser.role === 'Super Admin'
+                    ? 'bg-purple-600'
+                    : adminUser.role === 'Environmental Officer'
+                    ? 'bg-emerald-600'
+                    : 'bg-blue-600'
+                }`}>
                   {adminUser.name.charAt(0)}
                 </div>
                 <div className="text-left">
                   <span className="font-bold text-slate-900 dark:text-white block leading-tight">
                     {adminUser.name}
                   </span>
-                  <span className="text-[10px] text-teal-700 dark:text-teal-400 font-semibold block leading-tight">
+                  <span className={`text-[10px] font-bold block leading-tight ${
+                    adminUser.role === 'Super Admin'
+                      ? 'text-purple-600 dark:text-purple-400'
+                      : adminUser.role === 'Environmental Officer'
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-blue-600 dark:text-blue-400'
+                  }`}>
                     {adminUser.role}
                   </span>
                 </div>

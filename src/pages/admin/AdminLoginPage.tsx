@@ -29,13 +29,13 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setIsLoading(true);
 
-    setTimeout(() => {
-      const result = dataService.loginAdmin(username, password);
+    try {
+      const result = await dataService.loginAdmin(username, password);
       setIsLoading(false);
 
       if (result.success) {
@@ -46,7 +46,10 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
       } else {
         setErrorMsg(result.error || 'Authentication failed. Please verify credentials.');
       }
-    }, 400);
+    } catch {
+      setIsLoading(false);
+      setErrorMsg('Authentication error. Please check credentials and try again.');
+    }
   };
 
   const handleQuickFill = (user: string, pass: string) => {

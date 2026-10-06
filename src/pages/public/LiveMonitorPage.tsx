@@ -144,6 +144,16 @@ export const LiveMonitorPage: React.FC = () => {
                 WAITING DATA
               </span>
             )}
+            {state === 'STOPPED' && (
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                STOPPED
+              </span>
+            )}
+            {!isMonitoring && state === 'IDLE' && (
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 dark:bg-slate-850 dark:text-slate-400">
+                STANDBY
+              </span>
+            )}
           </div>
         </div>
 

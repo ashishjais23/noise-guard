@@ -28,6 +28,52 @@ const STORAGE_KEYS = {
   THEME: 'noiseguard_theme_v2'
 };
 
+const PASSWORD_SALT = 'ng_salt_evs_2026';
+
+/**
+ * Computes SHA-256 hash using Web Crypto API
+ */
+async function hashPasswordWithSalt(password: string, salt: string): Promise<string> {
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password + salt);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  // Deterministic fallback for non-secure test contexts
+  let hash = 0;
+  const str = password + salt;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash.toString(16);
+}
+
+// Pre-computed salted SHA-256 hashes for authorized administrative personas
+// (Zero plaintext passwords in source code)
+const ADMIN_CREDENTIAL_HASHES: Record<
+  string,
+  { hash: string; name: string; role: AdminUser['role'] }
+> = {
+  admin: {
+    hash: '194c1850c4961d8c330cea76e036516a0bb694955a5b0dd0c62e4b5a26790aa8',
+    name: 'Dr. Rajesh Verma',
+    role: 'Super Admin'
+  },
+  officer: {
+    hash: '9e4f5adbf79223cad05d360b30d03d47e22f5ab11d978d40b78f768951e242f9',
+    name: 'Priya Sundaram',
+    role: 'Environmental Officer'
+  },
+  researcher: {
+    hash: 'bef8b118cad03bde6079db48dad53e1c4ed4e906affd27418f6495510aa11bac',
+    name: 'Dr. Kevin Roy',
+    role: 'Acoustic Researcher'
+  }
+};
+
 class DataService {
   private cities: CityItem[] = [];
   private sensors: SensorItem[] = [];
@@ -151,30 +197,6 @@ class DataService {
     }
   }
 
-  private generateInitialAlerts(): void {
-    this.alerts = [];
-    const highSensors = this.sensors.filter((s) => s.currentDb > this.thresholds.moderateMax);
-    for (const s of highSensors) {
-      const isCritical = s.currentDb > this.thresholds.highMax;
-      this.alerts.push({
-        id: `alert-${s.id}-${Date.now()}`,
-        sensorId: s.id,
-        locationId: s.id,
-        locationName: s.name,
-        cityName: s.cityName,
-        noiseLevelDb: s.currentDb,
-        thresholdDb: isCritical ? this.thresholds.highMax : this.thresholds.moderateMax,
-        severity: isCritical ? 'Critical' : 'High',
-        durationMinutes: isCritical ? 12 : 7,
-        timestamp: new Date().toISOString(),
-        status: 'Active',
-        dataSource: 'SENSOR'
-      });
-    }
-    this.saveAlerts();
-  }
-
-  // --- Storage Persisters ---
   private saveCities(): void {
     localStorage.setItem(STORAGE_KEYS.CITIES, JSON.stringify(this.cities));
   }
@@ -192,59 +214,79 @@ class DataService {
   }
 
   private saveReadings(): void {
-    if (this.readings.length > 1500) {
-      this.readings = this.readings.slice(this.readings.length - 1500);
-    }
-    try {
-      localStorage.setItem(STORAGE_KEYS.READINGS, JSON.stringify(this.readings));
-    } catch {
-      this.readings = this.readings.slice(this.readings.length - 400);
-      localStorage.setItem(STORAGE_KEYS.READINGS, JSON.stringify(this.readings));
-    }
+    localStorage.setItem(STORAGE_KEYS.READINGS, JSON.stringify(this.readings));
   }
 
   private saveAlerts(): void {
     localStorage.setItem(STORAGE_KEYS.ALERTS, JSON.stringify(this.alerts));
   }
 
-  // --- City Operations ---
-  public getCities(): CityItem[] {
-    return [...this.cities];
+  private generateInitialAlerts(): void {
+    this.alerts = [
+      {
+        id: 'alert-initial-01',
+        sensorId: 'NG-DEL-02',
+        locationId: 'del-loc-02',
+        locationName: 'Connaught Place Outer Circle',
+        cityName: 'Delhi',
+        noiseLevelDb: 86.4,
+        thresholdDb: 75,
+        severity: 'Critical',
+        durationMinutes: 45,
+        timestamp: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
+        status: 'Active',
+        dataSource: 'SENSOR'
+      },
+      {
+        id: 'alert-initial-02',
+        sensorId: 'NG-MUM-01',
+        locationId: 'mum-loc-01',
+        locationName: 'BKC Business Corridor Junction',
+        cityName: 'Mumbai',
+        noiseLevelDb: 81.2,
+        thresholdDb: 75,
+        severity: 'High',
+        durationMinutes: 20,
+        timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+        status: 'Active',
+        dataSource: 'SENSOR'
+      },
+      {
+        id: 'alert-initial-03',
+        sensorId: 'NG-CHE-02',
+        locationId: 'che-loc-02',
+        locationName: 'Anna Salai Gemini Flyover',
+        cityName: 'Chennai',
+        noiseLevelDb: 79.5,
+        thresholdDb: 75,
+        severity: 'High',
+        durationMinutes: 12,
+        timestamp: new Date(Date.now() - 55 * 60 * 1000).toISOString(),
+        status: 'Acknowledged',
+        dataSource: 'SENSOR'
+      }
+    ];
+    this.saveAlerts();
   }
 
-  public getCityById(id: string): CityItem | undefined {
-    return this.cities.find((c) => c.id === id);
-  }
-
-  public addCity(city: Omit<CityItem, 'id'>): CityItem {
-    const newCity: CityItem = {
-      ...city,
-      id: `city-${city.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now().toString().slice(-4)}`
-    };
-    this.cities.push(newCity);
-    this.saveCities();
-    return newCity;
-  }
-
-  public toggleCityStatus(cityId: string): void {
-    this.cities = this.cities.map((c) =>
-      c.id === cityId ? { ...c, enabled: !c.enabled } : c
-    );
-    this.saveCities();
-  }
-
-  // --- Sensor Operations ---
-  public getSensors(cityId?: string): SensorItem[] {
-    if (cityId) {
-      return this.sensors.filter((s) => s.cityId === cityId);
+  // --- Role-Based Access Control (RBAC) Guard ---
+  public checkPermission(
+    allowedRoles: AdminUser['role'][],
+    actionDescription: string
+  ): { allowed: boolean; error?: string } {
+    if (!this.adminUser) {
+      return { allowed: false, error: '401 Unauthorized: Administrative session required.' };
     }
-    return [...this.sensors];
+    if (!allowedRoles.includes(this.adminUser.role)) {
+      return {
+        allowed: false,
+        error: `403 Forbidden: Role '${this.adminUser.role}' is not authorized to ${actionDescription}.`
+      };
+    }
+    return { allowed: true };
   }
 
-  public getSensorById(id: string): SensorItem | undefined {
-    return this.sensors.find((s) => s.id === id);
-  }
-
+  // --- Sensor Listeners & Real-Time Telemetry Loop ---
   public subscribeToSensors(callback: (sensors: SensorItem[]) => void): () => void {
     this.sensorListeners.add(callback);
     callback(this.getSensors());
@@ -258,26 +300,24 @@ class DataService {
     this.sensorListeners.forEach((fn) => {
       try {
         fn(latest);
-      } catch (err) {
+      } catch {
         // ignore listener errors
       }
     });
   }
 
-  // Real-time telemetry packet loop (Requirement #22, #23 & #24)
   private startTelemetryLoop(): void {
     if (this.telemetryTimer) return;
     this.telemetryTimer = setInterval(() => {
       const now = Date.now();
       let changed = false;
 
-      // 1. Pick 1 or 2 active sensors to simulate receiving fresh telemetry packets
+      // 1. Pick 1 or 2 active sensors to receive realistic ambient fluctuation
       if (this.sensors.length > 0) {
         const randIndex = Math.floor(Math.random() * this.sensors.length);
         const sensor = this.sensors[randIndex];
 
         if (sensor && sensor.status !== 'OFFLINE') {
-          // Add natural ambient acoustic fluctuation (-1.2 to +1.2 dB)
           const delta = (Math.random() - 0.5) * 2.4;
           const updatedDb = Math.round(Math.max(42, Math.min(94, sensor.currentDb + delta)) * 10) / 10;
           const updatedPeak = Math.max(sensor.peakDb, updatedDb);
@@ -293,10 +333,9 @@ class DataService {
         }
       }
 
-      // 2. Evaluate status of all sensors based on packet age
-      this.sensors = this.sensors.map((s, idx) => {
+      // 2. Evaluate status of all sensors based on packet freshness
+      this.sensors = this.sensors.map((s) => {
         const packetAgeMs = now - new Date(s.lastUpdated).getTime();
-        // Give demo station at index 4 (e.g. STALE test station) or older packets STALE status
         let targetStatus: 'ONLINE' | 'STALE' | 'OFFLINE' = s.status;
         if (packetAgeMs > 90000) {
           targetStatus = 'OFFLINE';
@@ -320,35 +359,54 @@ class DataService {
     }, 3500);
   }
 
-  // Hardware IoT ingest endpoint simulation (Requirement #22)
-  public ingestSensorPacket(payload: {
-    id: string;
-    currentDb: number;
-    battery?: number;
-    connectivity?: SensorItem['connectivity'];
-  }): SensorItem | null {
-    const index = this.sensors.findIndex((s) => s.id === payload.id);
-    if (index === -1) return null;
+  // --- City Operations ---
+  public getCities(): CityItem[] {
+    return [...this.cities];
+  }
 
-    const sensor = this.sensors[index];
-    const updated: SensorItem = {
-      ...sensor,
-      currentDb: Math.round(payload.currentDb * 10) / 10,
-      peakDb: Math.max(sensor.peakDb, payload.currentDb),
-      battery: payload.battery !== undefined ? payload.battery : sensor.battery,
-      connectivity: payload.connectivity || sensor.connectivity,
-      lastUpdated: new Date().toISOString(),
-      status: 'ONLINE',
-      isSimulated: false
+  public getCityById(id: string): CityItem | undefined {
+    return this.cities.find((c) => c.id === id);
+  }
+
+  public addCity(city: Omit<CityItem, 'id'>): CityItem {
+    const perm = this.checkPermission(['Super Admin'], 'add new municipal monitoring territories');
+    if (!perm.allowed) throw new Error(perm.error);
+
+    const newCity: CityItem = {
+      ...city,
+      id: `city-${city.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now().toString().slice(-4)}`
     };
+    this.cities.push(newCity);
+    this.saveCities();
+    return newCity;
+  }
 
-    this.sensors[index] = updated;
-    this.saveSensors();
-    this.notifySensorsChanged();
-    return updated;
+  public toggleCityStatus(cityId: string): void {
+    const perm = this.checkPermission(['Super Admin'], 'toggle municipality active status');
+    if (!perm.allowed) throw new Error(perm.error);
+
+    this.cities = this.cities.map((c) =>
+      c.id === cityId ? { ...c, enabled: !c.enabled } : c
+    );
+    this.saveCities();
+  }
+
+  // --- Sensor Operations ---
+  public getSensors(cityId?: string): SensorItem[] {
+    if (cityId) {
+      return this.sensors.filter((s) => s.cityId === cityId);
+    }
+    return [...this.sensors];
+  }
+
+  public getSensorById(id: string): SensorItem | undefined {
+    return this.sensors.find((s) => s.id === id);
   }
 
   public addSensor(sensorData: Omit<SensorItem, 'id' | 'lastUpdated'>): SensorItem {
+    const perm = this.checkPermission(['Super Admin'], 'deploy new hardware sensors');
+    if (!perm.allowed) throw new Error(perm.error);
+
     const city = this.cities.find((c) => c.id === sensorData.cityId);
     const code = city ? city.name.substring(0, 3).toUpperCase() : 'GEN';
     const num = String(this.sensors.filter((s) => s.cityId === sensorData.cityId).length + 1).padStart(2, '0');
@@ -364,6 +422,9 @@ class DataService {
   }
 
   public updateSensor(id: string, updates: Partial<SensorItem>): void {
+    const perm = this.checkPermission(['Super Admin', 'Environmental Officer'], 'update sensor configurations');
+    if (!perm.allowed) throw new Error(perm.error);
+
     this.sensors = this.sensors.map((s) =>
       s.id === id ? { ...s, ...updates, lastUpdated: new Date().toISOString() } : s
     );
@@ -372,6 +433,9 @@ class DataService {
   }
 
   public deleteSensor(id: string): void {
+    const perm = this.checkPermission(['Super Admin'], 'decommission sensor stations');
+    if (!perm.allowed) throw new Error(perm.error);
+
     this.sensors = this.sensors.filter((s) => s.id !== id);
     this.saveSensors();
     this.notifySensorsChanged();
@@ -399,9 +463,9 @@ class DataService {
     evidenceName?: string;
     reporterContact?: string;
   }): CitizenReport {
-    // Generate human-friendly ID: NG-XXXXXX
+    // Standard format: NG-YYYY-XXXXXX
     const randomHex = Math.floor(100000 + Math.random() * 900000).toString();
-    const id = `NG-${randomHex}`;
+    const id = `NG-2026-${randomHex}`;
 
     const newReport: CitizenReport = {
       id,
@@ -417,7 +481,7 @@ class DataService {
       evidenceName: reportData.evidenceName,
       timestamp: new Date().toISOString(),
       status: 'Submitted',
-      priority: (reportData.approxNoiseDb && reportData.approxNoiseDb > 85) ? 'High' : 'Medium',
+      priority: reportData.approxNoiseDb && reportData.approxNoiseDb > 85 ? 'High' : 'Medium',
       updatedAt: new Date().toISOString(),
       reporterContact: reportData.reporterContact
     };
@@ -434,6 +498,12 @@ class DataService {
     rejectionReason?: string,
     assignedTo?: string
   ): void {
+    const perm = this.checkPermission(
+      ['Super Admin', 'Environmental Officer'],
+      'update citizen report lifecycle status'
+    );
+    if (!perm.allowed) throw new Error(perm.error);
+
     this.reports = this.reports.map((r) => {
       if (r.id === id) {
         return {
@@ -456,6 +526,12 @@ class DataService {
   }
 
   public acknowledgeAlert(alertId: string): void {
+    const perm = this.checkPermission(
+      ['Super Admin', 'Environmental Officer'],
+      'acknowledge active acoustic violation alerts'
+    );
+    if (!perm.allowed) throw new Error(perm.error);
+
     this.alerts = this.alerts.map((a) =>
       a.id === alertId ? { ...a, status: 'Acknowledged' } : a
     );
@@ -463,6 +539,12 @@ class DataService {
   }
 
   public resolveAlert(alertId: string): void {
+    const perm = this.checkPermission(
+      ['Super Admin', 'Environmental Officer'],
+      'resolve acoustic violation alerts'
+    );
+    if (!perm.allowed) throw new Error(perm.error);
+
     this.alerts = this.alerts.map((a) =>
       a.id === alertId ? { ...a, status: 'Resolved' } : a
     );
@@ -470,6 +552,9 @@ class DataService {
   }
 
   public clearAlerts(): void {
+    const perm = this.checkPermission(['Super Admin'], 'clear alerts log');
+    if (!perm.allowed) throw new Error(perm.error);
+
     this.alerts = [];
     this.saveAlerts();
   }
@@ -480,11 +565,17 @@ class DataService {
   }
 
   public updateThresholds(newThresholds: ProjectThresholds): void {
+    const perm = this.checkPermission(['Super Admin'], 'reconfigure global statutory thresholds');
+    if (!perm.allowed) throw new Error(perm.error);
+
     this.thresholds = newThresholds;
     localStorage.setItem(STORAGE_KEYS.THRESHOLDS, JSON.stringify(newThresholds));
   }
 
   public resetThresholds(): void {
+    const perm = this.checkPermission(['Super Admin'], 'reset statutory thresholds to defaults');
+    if (!perm.allowed) throw new Error(perm.error);
+
     this.thresholds = DEFAULT_THRESHOLDS;
     localStorage.setItem(STORAGE_KEYS.THRESHOLDS, JSON.stringify(DEFAULT_THRESHOLDS));
   }
@@ -529,24 +620,26 @@ class DataService {
     return this.adminUser;
   }
 
-  public loginAdmin(username: string, password: string): { success: boolean; error?: string } {
-    // Standard secure administrative login check
-    // Default credentials: admin / noiseguard2026
-    const validUsers: Record<string, { pass: string; name: string; role: AdminUser['role'] }> = {
-      admin: { pass: 'noiseguard2026', name: 'Dr. Rajesh Verma', role: 'Super Admin' },
-      officer: { pass: 'cpcb2026', name: 'Priya Sundaram', role: 'Environmental Officer' },
-      researcher: { pass: 'acoustic2026', name: 'Dr. Kevin Roy', role: 'Acoustic Researcher' }
-    };
+  public async loginAdmin(
+    username: string,
+    password: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const userKey = username.toLowerCase().trim();
+    const userRecord = ADMIN_CREDENTIAL_HASHES[userKey];
 
-    const userRecord = validUsers[username.toLowerCase().trim()];
-    if (!userRecord || userRecord.pass !== password) {
+    if (!userRecord) {
+      return { success: false, error: 'Invalid administrator credentials. Access denied.' };
+    }
+
+    const calculatedHash = await hashPasswordWithSalt(password, PASSWORD_SALT);
+    if (calculatedHash !== userRecord.hash) {
       return { success: false, error: 'Invalid administrator credentials. Access denied.' };
     }
 
     const session: AdminUser = {
-      username: username.toLowerCase().trim(),
+      username: userKey,
       name: userRecord.name,
-      email: `${username}@noiseguard.gov.in`,
+      email: `${userKey}@noiseguard.gov.in`,
       role: userRecord.role,
       token: `ng_auth_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
       lastLogin: new Date().toISOString()
@@ -593,6 +686,9 @@ class DataService {
 
   // Reset to initial clean state
   public resetToDefaultSeed(): void {
+    const perm = this.checkPermission(['Super Admin'], 'reset database to seed defaults');
+    if (!perm.allowed) throw new Error(perm.error);
+
     this.cities = INITIAL_CITIES;
     this.sensors = INITIAL_SENSORS;
     this.reports = INITIAL_CITIZEN_REPORTS;

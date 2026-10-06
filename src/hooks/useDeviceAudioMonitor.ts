@@ -31,7 +31,7 @@ export interface AudioDiagnostics {
   calibrationOffset: number;
 }
 
-export interface UseDeviceAudioMonitorReturn {
+export interface UseNoiseMeasurementReturn {
   // State machine & status
   state: MonitoringState;
   permissionState: MicPermissionState;
@@ -40,7 +40,7 @@ export interface UseDeviceAudioMonitorReturn {
   isStale: boolean;
   errorMessage: string | null;
 
-  // Measurements
+  // Measurements (Derived from canonical single stream)
   currentDb: number;
   averageDb: number;
   peakDb: number;
@@ -48,6 +48,8 @@ export interface UseDeviceAudioMonitorReturn {
   uncalibratedDb: number;
   durationSeconds: number;
   history: AudioPoint[];
+  source: 'DEVICE_MICROPHONE';
+  calibrationStatus: 'Calibrated' | 'Estimated (Uncalibrated)';
 
   // Calibration
   calibrationOffset: number;
@@ -65,6 +67,8 @@ export interface UseDeviceAudioMonitorReturn {
   resetSession: () => void;
 }
 
+export type UseDeviceAudioMonitorReturn = UseNoiseMeasurementReturn;
+
 const CALIBRATION_STORAGE_KEY = 'noiseguard_device_calibration_offset_v1';
 
 function getSavedCalibrationOffset(): number {
@@ -77,7 +81,7 @@ function getSavedCalibrationOffset(): number {
   return 0;
 }
 
-export function useDeviceAudioMonitor(): UseDeviceAudioMonitorReturn {
+export function useDeviceAudioMonitor(): UseNoiseMeasurementReturn {
   const [state, setState] = useState<MonitoringState>('IDLE');
   const [permissionState, setPermissionState] = useState<MicPermissionState>('idle');
   const [currentDb, setCurrentDb] = useState<number>(0);
@@ -115,17 +119,23 @@ export function useDeviceAudioMonitor(): UseDeviceAudioMonitorReturn {
   const timerIntervalRef = useRef<any>(null);
   const staleCheckIntervalRef = useRef<any>(null);
 
-  // Processing state refs (to avoid stale closures in requestAnimationFrame)
+  // Processing state refs
   const isMonitoringRef = useRef<boolean>(false);
   const isPausedRef = useRef<boolean>(false);
   const calibrationOffsetRef = useRef<number>(calibrationOffset);
   const lastSampleTimestampRef = useRef<number>(0);
   const smoothingWindowRef = useRef<number[]>([]);
-  const energyHistoryRef = useRef<number[]>([]);
+  
+  // Rolling Leq Energy Buffer: holds last 300 samples (30s at 100ms intervals)
+  const rollingEnergySamplesRef = useRef<number[]>([]);
+  const lastEnergySamplePushRef = useRef<number>(0);
+
+  // Session peak & recent window
   const sessionPeakRef = useRef<number>(0);
   const recentWindowRef = useRef<{ timestamp: number; db: number }[]>([]);
+  const monitorStartTimeRef = useRef<number>(0);
 
-  // Update calibration ref when state changes
+  // Keep calibration offset ref in sync
   useEffect(() => {
     calibrationOffsetRef.current = calibrationOffset;
   }, [calibrationOffset]);
@@ -308,18 +318,20 @@ export function useDeviceAudioMonitor(): UseDeviceAudioMonitorReturn {
       // Analyser Node configuration
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 1024;
-      analyser.smoothingTimeConstant = 0.25; // Responsive yet controlled
+      analyser.smoothingTimeConstant = 0.25;
       analyserRef.current = analyser;
 
       const source = audioCtx.createMediaStreamSource(stream);
       source.connect(analyser);
 
-      // Reset measurement buffers
+      // Reset measurement buffers cleanly
       smoothingWindowRef.current = [];
-      energyHistoryRef.current = [];
+      rollingEnergySamplesRef.current = [];
       sessionPeakRef.current = 0;
       recentWindowRef.current = [];
       lastSampleTimestampRef.current = Date.now();
+      lastEnergySamplePushRef.current = 0;
+      monitorStartTimeRef.current = Date.now();
 
       setCurrentDb(0);
       setAverageDb(0);
@@ -334,7 +346,7 @@ export function useDeviceAudioMonitor(): UseDeviceAudioMonitorReturn {
       isPausedRef.current = false;
       setState('MONITORING');
 
-      // Update initial diagnostics
+      // Initial diagnostics
       setDiagnostics({
         audioContextState: audioCtx.state,
         sampleRate: audioCtx.sampleRate || 48000,
@@ -357,13 +369,12 @@ export function useDeviceAudioMonitor(): UseDeviceAudioMonitorReturn {
         }
       }, 1000);
 
-      // 4. Real-time Audio Sample Loop (using Ref flag to prevent closure stalls)
+      // 4. Real-time Audio Sample Loop
       const buffer = new Float32Array(analyser.fftSize);
       let lastHistoryPush = Date.now();
       let lastDiagnosticsUpdate = Date.now();
 
       const processAudio = () => {
-        // Break loop if monitoring was stopped or analyser destroyed
         if (!isMonitoringRef.current || !analyserRef.current) {
           return;
         }
@@ -389,15 +400,15 @@ export function useDeviceAudioMonitor(): UseDeviceAudioMonitorReturn {
           const rms = Math.sqrt(sumSquares / buffer.length);
 
           // Step C: Convert RMS to dBFS then estimate SPL
-          // 0 dBFS is digital maximum. Silence floor is capped at 1e-5.
           const effectiveRms = Math.max(rms, 1e-5);
           const dbFs = 20 * Math.log10(effectiveRms);
 
-          // Empirical acoustic transfer function for mobile/laptop mics:
-          // Digital full scale ~ 120 dB SPL. Quiet room (-65 dBFS) gives ~35 dB.
-          // Loud room (-40 dBFS) gives ~60 dB. Shouting/Traffic (-20 dBFS) gives ~80 dB.
+          // Physical empirical transfer curve:
+          // Digital full scale ~ 120 dB SPL.
+          // Quiet room (-65 dBFS) gives ~35 dB.
+          // Loud room (-40 dBFS) gives ~60 dB.
+          // Traffic/Horn (-20 dBFS) gives ~80 dB.
           let rawEstimatedSpl = dbFs + 100;
-          // Clamp to realistic physical environmental range (30 dB whisper - 115 dB siren)
           rawEstimatedSpl = Math.max(30, Math.min(115, rawEstimatedSpl));
 
           // Step D: Rolling Window Smoothing (5 samples, ~80-120ms)
@@ -420,36 +431,49 @@ export function useDeviceAudioMonitor(): UseDeviceAudioMonitorReturn {
           setCurrentDb(calibratedFinal);
           setUncalibratedDb(uncalFinal);
 
-          // Step F: Session Peak & Short-Window Peak
-          if (calibratedFinal > sessionPeakRef.current) {
-            sessionPeakRef.current = calibratedFinal;
-            setPeakDb(calibratedFinal);
+          // Warmup check: Discard first 500ms after startup to ignore mic click/activation thump
+          const isWarmupOver = now - monitorStartTimeRef.current > 500;
+
+          if (isWarmupOver) {
+            // Step F: Session Peak & Short-Window Peak
+            if (sessionPeakRef.current === 0 || calibratedFinal > sessionPeakRef.current) {
+              sessionPeakRef.current = calibratedFinal;
+              setPeakDb(calibratedFinal);
+            }
+
+            // Short-window peak (last 3 seconds)
+            recentWindowRef.current.push({ timestamp: now, db: calibratedFinal });
+            recentWindowRef.current = recentWindowRef.current.filter(
+              (item) => now - item.timestamp <= 3000
+            );
+            const currentRecentPeak = Math.max(
+              ...recentWindowRef.current.map((i) => i.db),
+              calibratedFinal
+            );
+            setRecentPeakDb(currentRecentPeak);
+
+            // Step G: Canonical Rolling Leq Energy Buffer
+            // Push sample every 100ms (10 times/second)
+            if (now - lastEnergySamplePushRef.current >= 100) {
+              lastEnergySamplePushRef.current = now;
+              const linearEnergy = Math.pow(10, calibratedFinal / 10);
+              const rollingBuffer = rollingEnergySamplesRef.current;
+              rollingBuffer.push(linearEnergy);
+
+              // Keep up to 300 samples (30 seconds rolling Leq window)
+              if (rollingBuffer.length > 300) {
+                rollingBuffer.shift();
+              }
+
+              // Compute continuous equivalent sound level (Leq)
+              const sumEnergy = rollingBuffer.reduce((a, b) => a + b, 0);
+              const meanEnergy = sumEnergy / rollingBuffer.length;
+              const leqAvg = Math.round(10 * Math.log10(meanEnergy) * 10) / 10;
+              setAverageDb(Math.max(30, Math.min(115, leqAvg)));
+            }
           }
 
-          // Short-window peak (last 3 seconds)
-          recentWindowRef.current.push({ timestamp: now, db: calibratedFinal });
-          recentWindowRef.current = recentWindowRef.current.filter(
-            (item) => now - item.timestamp <= 3000
-          );
-          const currentRecentPeak = Math.max(
-            ...recentWindowRef.current.map((i) => i.db),
-            calibratedFinal
-          );
-          setRecentPeakDb(currentRecentPeak);
-
-          // Step G: Leq Equivalent Energy Average
-          const linearEnergy = Math.pow(10, calibratedFinal / 10);
-          energyHistoryRef.current.push(linearEnergy);
-
-          // Update running Leq average every 6 frames
-          if (energyHistoryRef.current.length % 6 === 0) {
-            const sumEnergy = energyHistoryRef.current.reduce((a, b) => a + b, 0);
-            const meanEnergy = sumEnergy / energyHistoryRef.current.length;
-            const leqAvg = Math.round(10 * Math.log10(meanEnergy) * 10) / 10;
-            setAverageDb(Math.max(30, Math.min(115, leqAvg)));
-          }
-
-          // Step H: Chart History Append (every ~700ms)
+          // Step H: Chart History Append (every ~700ms) from exact same stream
           if (now - lastHistoryPush >= 700) {
             lastHistoryPush = now;
             const timeLabel = new Date(now).toLocaleTimeString([], {
@@ -480,11 +504,9 @@ export function useDeviceAudioMonitor(): UseDeviceAudioMonitorReturn {
           }
         }
 
-        // Continue animation frame loop
         animationFrameRef.current = requestAnimationFrame(processAudio);
       };
 
-      // Kick off the loop
       animationFrameRef.current = requestAnimationFrame(processAudio);
     } catch (err: any) {
       cleanup();
@@ -543,7 +565,7 @@ export function useDeviceAudioMonitor(): UseDeviceAudioMonitorReturn {
   }, [cleanup]);
 
   const resetSession = useCallback(() => {
-    energyHistoryRef.current = [];
+    rollingEnergySamplesRef.current = [];
     smoothingWindowRef.current = [];
     recentWindowRef.current = [];
     sessionPeakRef.current = currentDb;
@@ -567,6 +589,8 @@ export function useDeviceAudioMonitor(): UseDeviceAudioMonitorReturn {
     uncalibratedDb,
     durationSeconds,
     history,
+    source: 'DEVICE_MICROPHONE',
+    calibrationStatus: calibrationOffset !== 0 ? 'Calibrated' : 'Estimated (Uncalibrated)',
     calibrationOffset,
     updateCalibrationOffset,
     resetCalibration,
@@ -578,3 +602,6 @@ export function useDeviceAudioMonitor(): UseDeviceAudioMonitorReturn {
     resetSession
   };
 }
+
+// Export alias for canonical architecture requirement
+export const useNoiseMeasurement = useDeviceAudioMonitor;

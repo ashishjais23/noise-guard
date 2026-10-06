@@ -18,7 +18,8 @@ import {
   CitizenReport,
   NoiseAlert,
   CityItem,
-  NoiseSeverity
+  NoiseSeverity,
+  AdminUser
 } from '../../types';
 import { NoiseStatusBadge } from '../../components/common/NoiseStatusBadge';
 import { AdminPageId } from '../../components/admin/AdminLayout';
@@ -28,6 +29,7 @@ interface AdminDashboardPageProps {
   reports: CitizenReport[];
   alerts: NoiseAlert[];
   cities: CityItem[];
+  adminUser?: AdminUser | null;
   setActiveAdminPage: (page: AdminPageId) => void;
   onAcknowledgeAlert: (alertId: string) => void;
 }
@@ -37,6 +39,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   reports,
   alerts,
   cities,
+  adminUser,
   setActiveAdminPage,
   onAcknowledgeAlert
 }) => {
@@ -48,15 +51,46 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const criticalSensors = sensors.filter((s) => s.currentDb > 85);
   const highSensors = sensors.filter((s) => s.currentDb > 75 && s.currentDb <= 85);
 
+  const role = adminUser?.role || 'Super Admin';
+
+  const roleHeader = {
+    'Super Admin': {
+      title: 'Executive Telemetry & Municipal Authority Dashboard',
+      subtitle: 'Complete system administration, hardware sensor fleet oversight, and statutory controls.'
+    },
+    'Environmental Officer': {
+      title: 'Field Enforcement & Acoustic Violation Triage',
+      subtitle: 'Active incident response, complaint verification, and municipal noise enforcement operations.'
+    },
+    'Acoustic Researcher': {
+      title: 'Acoustic Research & Environmental Science Console',
+      subtitle: 'Sound pressure distributions, continuous equivalent level (Leq) analytics, and exportable datasets.'
+    }
+  }[role] || {
+    title: 'Executive Telemetry Dashboard',
+    subtitle: 'Real-time municipal acoustic monitoring network and alert tracking.'
+  };
+
   return (
     <div className="space-y-8 pb-12">
       {/* Page Title */}
       <div>
+        <div className="flex items-center gap-2 mb-1">
+          <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+            role === 'Super Admin'
+              ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/70 dark:text-purple-300'
+              : role === 'Environmental Officer'
+              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300'
+              : 'bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300'
+          }`}>
+            {role} Portal
+          </span>
+        </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-          Executive Telemetry Dashboard
+          {roleHeader.title}
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-          Real-time municipal acoustic monitoring network, alert tracking, and citizen reporting triage.
+          {roleHeader.subtitle}
         </p>
       </div>
 

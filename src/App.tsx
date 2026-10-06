@@ -238,6 +238,7 @@ export function App() {
             reports={reports}
             alerts={alerts}
             cities={cities}
+            adminUser={adminUser}
             setActiveAdminPage={setAdminPage}
             onAcknowledgeAlert={handleAcknowledgeAlert}
           />

@@ -72,17 +72,18 @@ export const PublicHomePage: React.FC<PublicHomePageProps> = ({
                 {heroEstimateDb}
               </span>
               <span className="text-lg font-bold text-slate-400">dB</span>
-              <InfoButton
-                title="What does this mean?"
-                content={`${heroEstimateDb} dB means the ambient sound is currently moderately loud, typical of active daytime traffic or normal neighborhood activity.`}
-                size="sm"
-                className="absolute top-8 right-10"
-              />
             </div>
 
-            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/90 dark:bg-slate-900/90 shadow-2xs border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300">
-              <span className={`w-2 h-2 rounded-full ${heroSeverity.dot}`} />
-              <span>{heroSeverity.label} Noise</span>
+            <div className="mt-2.5 inline-flex items-center justify-center gap-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white/90 dark:bg-slate-900/90 shadow-2xs border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300">
+                <span className={`w-2 h-2 rounded-full ${heroSeverity.dot}`} />
+                <span>{heroSeverity.label} Noise</span>
+              </div>
+              <InfoButton
+                title="Noise Severity Scale"
+                content={`${heroEstimateDb} dB is categorized as ${heroSeverity.label} Noise based on CPCB ambient urban standards (Safe ≤ 65 dB, Moderate 66–75 dB, High 76–85 dB, Critical > 85 dB).`}
+                size="sm"
+              />
             </div>
 
             <div className="mt-2 flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 font-medium">

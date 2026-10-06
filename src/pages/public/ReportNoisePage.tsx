@@ -2,14 +2,16 @@ import React, { useState } from 'react';
 import {
   CheckCircle2,
   Camera,
-  Music,
   MapPin,
   ArrowRight,
   AlertCircle,
   Navigation,
+  Search,
+  Loader2,
   X
 } from 'lucide-react';
 import { dataService } from '../../services/dataService';
+import { locationService, LocationSearchResult } from '../../services/locationService';
 import { CityItem, ReportCategory, CitizenReport } from '../../types';
 import { PublicPageId } from '../../components/layout/PublicHeader';
 
@@ -37,35 +39,68 @@ export const ReportNoisePage: React.FC<ReportNoisePageProps> = ({
   onReportSubmitted
 }) => {
   const [category, setCategory] = useState<ReportCategory>('Traffic');
-  const [city, setCity] = useState(selectedCity.name);
+  const [city, setCity] = useState(selectedCity ? selectedCity.name : 'Delhi');
   const [location, setLocation] = useState('');
+  const [latitude, setLatitude] = useState<number | undefined>(undefined);
+  const [longitude, setLongitude] = useState<number | undefined>(undefined);
+  const [accuracy, setAccuracy] = useState<number | undefined>(undefined);
   const [isLocating, setIsLocating] = useState(false);
   const [description, setDescription] = useState('');
   const [evidenceName, setEvidenceName] = useState<string | null>(null);
+
+  // Address search autocompletion
+  const [searchResults, setSearchResults] = useState<LocationSearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   const [submittedReport, setSubmittedReport] = useState<CitizenReport | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Request browser geolocation for one-click location fill
-  const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setErrorMsg('Geolocation is not supported by your browser.');
-      return;
-    }
+  // Request genuine browser geolocation with high accuracy + reverse geocode
+  const handleUseCurrentLocation = async () => {
+    setErrorMsg(null);
     setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setIsLocating(false);
-        const coordsStr = `GPS (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`;
-        setLocation(coordsStr);
-      },
-      () => {
-        setIsLocating(false);
-        setErrorMsg('Unable to retrieve your current location. Please enter your street or landmark.');
-      },
-      { timeout: 8000 }
-    );
+    try {
+      const pos = await locationService.getCurrentPosition();
+      setLatitude(pos.latitude);
+      setLongitude(pos.longitude);
+      setAccuracy(pos.accuracy);
+
+      // Perform genuine reverse geocode via OSM Nominatim
+      const geocoded = await locationService.reverseGeocode(pos.latitude, pos.longitude);
+      if (geocoded.city && geocoded.city !== 'Local Area') {
+        setCity(geocoded.city);
+      }
+      setLocation(geocoded.formattedAddress);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Unable to retrieve genuine GPS position.');
+    } finally {
+      setIsLocating(false);
+    }
+  };
+
+  // Perform open address query
+  const handleSearchAddress = async () => {
+    if (!location.trim() || location.trim().length < 3) return;
+    setIsSearching(true);
+    try {
+      const results = await locationService.searchAddress(location.trim());
+      setSearchResults(results);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSelectSearchResult = (result: LocationSearchResult) => {
+    setLocation(result.displayName);
+    if (result.city && result.city !== 'Local Area') {
+      setCity(result.city);
+    }
+    setLatitude(result.latitude);
+    setLongitude(result.longitude);
+    setSearchResults([]);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -84,12 +119,19 @@ export const ReportNoisePage: React.FC<ReportNoisePageProps> = ({
       return;
     }
 
+    if (!city.trim()) {
+      setErrorMsg('Please specify the city or locality.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const newReport = dataService.submitReport({
-        city,
+        city: city.trim(),
         location: location.trim(),
+        latitude,
+        longitude,
         category,
         description: description.trim() || 'No additional description provided.',
         evidenceName: evidenceName || undefined
@@ -109,9 +151,13 @@ export const ReportNoisePage: React.FC<ReportNoisePageProps> = ({
   const handleResetForm = () => {
     setSubmittedReport(null);
     setLocation('');
+    setLatitude(undefined);
+    setLongitude(undefined);
+    setAccuracy(undefined);
     setDescription('');
     setEvidenceName(null);
     setErrorMsg(null);
+    setSearchResults([]);
   };
 
   // Receipt view upon submission
@@ -128,7 +174,7 @@ export const ReportNoisePage: React.FC<ReportNoisePageProps> = ({
               Report Submitted
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Your acoustic complaint has been registered.
+              Your acoustic complaint has been registered in the municipal surveillance database.
             </p>
           </div>
 
@@ -146,12 +192,20 @@ export const ReportNoisePage: React.FC<ReportNoisePageProps> = ({
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Location:</span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[160px]">
+              <span className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[180px]">
                 {submittedReport.location}, {submittedReport.city}
               </span>
             </div>
+            {submittedReport.latitude && submittedReport.longitude && (
+              <div className="flex justify-between text-[11px]">
+                <span className="text-slate-400">GPS Coordinates:</span>
+                <span className="font-mono text-slate-600 dark:text-slate-400">
+                  {submittedReport.latitude.toFixed(4)}, {submittedReport.longitude.toFixed(4)}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between">
-              <span className="text-slate-400">Status:</span>
+              <span className="text-slate-400">Lifecycle Status:</span>
               <span className="font-semibold text-amber-600 dark:text-amber-400">Submitted</span>
             </div>
           </div>
@@ -159,7 +213,7 @@ export const ReportNoisePage: React.FC<ReportNoisePageProps> = ({
           <div className="flex flex-col gap-2 pt-2">
             <button
               onClick={() => setActivePage('my-reports')}
-              className="w-full py-3 px-4 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors flex items-center justify-center gap-1.5"
+              className="w-full py-3 px-4 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-md shadow-teal-600/20"
             >
               <span>Track in My Reports</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -177,7 +231,6 @@ export const ReportNoisePage: React.FC<ReportNoisePageProps> = ({
     );
   }
 
-  // Simplified form (Requirement #30)
   return (
     <div className="max-w-lg mx-auto py-4 sm:py-8 px-4 space-y-6">
       {/* Header */}
@@ -186,7 +239,7 @@ export const ReportNoisePage: React.FC<ReportNoisePageProps> = ({
           Report Excessive Noise
         </h1>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Notify environmental monitoring of local noise disturbances
+          Notify environmental monitoring of urban noise disturbances anywhere
         </p>
       </div>
 
@@ -239,36 +292,95 @@ export const ReportNoisePage: React.FC<ReportNoisePageProps> = ({
               disabled={isLocating}
               className="inline-flex items-center gap-1 text-[11px] font-bold text-teal-600 dark:text-teal-400 hover:underline"
             >
-              <Navigation className="w-3 h-3" />
-              <span>{isLocating ? 'Locating...' : 'Current location'}</span>
+              {isLocating ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Navigation className="w-3 h-3" />
+              )}
+              <span>{isLocating ? 'Acquiring GPS...' : 'Use Current GPS'}</span>
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            <select
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              className="col-span-1 px-3 py-2 text-xs font-medium bg-slate-50 dark:bg-slate-850 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500"
-            >
-              {cities.map((c) => (
-                <option key={c.id} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+          {/* Genuine GPS Accuracy Indicator */}
+          {accuracy !== undefined && latitude !== undefined && longitude !== undefined && (
+            <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800/80 text-[11px] text-teal-800 dark:text-teal-300 flex items-center justify-between">
+              <span className="font-semibold">
+                GPS Fixed: {latitude.toFixed(4)}, {longitude.toFixed(4)}
+              </span>
+              <span className="font-mono text-[10px] bg-teal-100 dark:bg-teal-900 px-1.5 py-0.5 rounded">
+                ±{accuracy}m accuracy
+              </span>
+            </div>
+          )}
 
-            <div className="col-span-2 relative">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {/* Open / Editable City Input with Datalist */}
+            <div className="col-span-1">
+              <input
+                type="text"
+                required
+                list="popular-cities"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="City / Area"
+                className="w-full px-3 py-2 text-xs font-medium bg-slate-50 dark:bg-slate-850 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+              <datalist id="popular-cities">
+                {cities.map((c) => (
+                  <option key={c.id} value={c.name} />
+                ))}
+              </datalist>
+            </div>
+
+            {/* Address / Landmark Input with Search Option */}
+            <div className="col-span-1 sm:col-span-2 relative">
               <MapPin className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 required
-                placeholder="Street / area / landmark"
+                placeholder="Street / area / landmark..."
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 text-xs bg-slate-50 dark:bg-slate-850 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500"
+                className="w-full pl-8 pr-16 py-2 text-xs bg-slate-50 dark:bg-slate-850 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
+              <button
+                type="button"
+                onClick={handleSearchAddress}
+                disabled={isSearching || !location.trim()}
+                title="Search address via OpenStreetMap"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-200 dark:bg-slate-700 hover:bg-teal-600 hover:text-white transition-colors"
+              >
+                {isSearching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
+              </button>
             </div>
           </div>
+
+          {/* Search suggestions dropdown */}
+          {searchResults.length > 0 && (
+            <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-md space-y-1 text-xs">
+              <div className="flex justify-between items-center px-1 text-[10px] font-bold text-slate-400 uppercase">
+                <span>Suggested Addresses</span>
+                <button
+                  type="button"
+                  onClick={() => setSearchResults([])}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+              {searchResults.map((item, idx) => (
+                <button
+                  type="button"
+                  key={idx}
+                  onClick={() => handleSelectSearchResult(item)}
+                  className="w-full text-left p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/60 truncate block text-[11px] text-slate-700 dark:text-slate-200"
+                >
+                  <span className="font-semibold">{item.city}: </span>
+                  {item.displayName}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Description: Optional */}
@@ -278,21 +390,21 @@ export const ReportNoisePage: React.FC<ReportNoisePageProps> = ({
           </label>
           <textarea
             rows={2}
-            placeholder="Brief details about the noise issue..."
+            placeholder="Brief details about the noise disturbance (e.g. night-time loudspeaker, heavy machinery)..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="w-full p-3 text-xs bg-slate-50 dark:bg-slate-850 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500"
           />
         </div>
 
-        {/* Evidence: Add photo / Add audio */}
+        {/* Evidence: Add photo */}
         <div className="space-y-2">
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Evidence <span className="text-[10px] font-normal lowercase text-slate-400">(Optional)</span>
           </label>
 
           <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 text-slate-700 dark:text-slate-300 hover:bg-slate-100 cursor-pointer text-xs font-semibold">
+            <label className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-xs font-semibold">
               <Camera className="w-3.5 h-3.5 text-teal-600" />
               <span>Add photo</span>
               <input
@@ -303,24 +415,13 @@ export const ReportNoisePage: React.FC<ReportNoisePageProps> = ({
               />
             </label>
 
-            <label className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 text-slate-700 dark:text-slate-300 hover:bg-slate-100 cursor-pointer text-xs font-semibold">
-              <Music className="w-3.5 h-3.5 text-teal-600" />
-              <span>Add audio</span>
-              <input
-                type="file"
-                accept="audio/*"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-            </label>
-
             {evidenceName && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 text-[11px] font-mono border border-teal-200 dark:border-teal-800">
-                <span className="truncate max-w-[140px]">{evidenceName}</span>
+              <span className="inline-flex items-center gap-1 text-[11px] text-teal-700 dark:text-teal-400 font-medium bg-teal-50 dark:bg-teal-950/60 px-2.5 py-1 rounded-lg">
+                <span>{evidenceName}</span>
                 <button
                   type="button"
                   onClick={() => setEvidenceName(null)}
-                  className="text-slate-400 hover:text-slate-600 ml-1"
+                  className="hover:text-rose-500"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -329,17 +430,21 @@ export const ReportNoisePage: React.FC<ReportNoisePageProps> = ({
           </div>
         </div>
 
-        {/* Submit */}
-        <div className="pt-2">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full py-3.5 px-6 text-sm font-bold text-white bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 rounded-xl shadow-md shadow-teal-600/20 active:scale-98 transition-all flex items-center justify-center gap-2"
-          >
-            <span>{isSubmitting ? 'Submitting...' : 'Submit Report'}</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
+        {/* Submit Button */}
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="w-full py-3.5 px-4 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 dark:bg-teal-500 rounded-2xl shadow-lg shadow-teal-600/20 active:scale-98 transition-all flex items-center justify-center gap-2 mt-4"
+        >
+          {isSubmitting ? (
+            <span>Registering complaint...</span>
+          ) : (
+            <>
+              <span>Submit Noise Report</span>
+              <ArrowRight className="w-4 h-4" />
+            </>
+          )}
+        </button>
       </form>
     </div>
   );
