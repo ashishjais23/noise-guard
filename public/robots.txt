@@ -1,4 +1,4 @@
-# Allow search engines and AI assistants to crawl and review NoiseGuard
+# Allow search engines and AI assistants to crawl and review NoiseWatch
 User-agent: *
 Allow: /
 

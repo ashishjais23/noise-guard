@@ -12,7 +12,7 @@ import {
 export const AboutProjectPage: React.FC = () => {
   const [copied, setCopied] = useState(false);
 
-  const sampleSqlSnippet = `-- NoiseGuard PostgreSQL Schema (Excerpts)
+  const sampleSqlSnippet = `-- NoiseWatch PostgreSQL Schema (Excerpts)
 CREATE TABLE public.locations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(120) NOT NULL,
@@ -48,7 +48,7 @@ CREATE TABLE public.noise_readings (
               <Info className="w-4 h-4" />
             </span>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-              About NoiseGuard &amp; Acoustic Physics
+              About NoiseWatch &amp; Acoustic Physics
             </h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">

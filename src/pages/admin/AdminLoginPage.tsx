@@ -65,7 +65,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({
           <Volume2 className="w-6 h-6" />
         </div>
         <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-          NoiseGuard Administration
+          NoiseWatch Administration
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Municipal Acoustic Surveillance &amp; Technical Management Gateway

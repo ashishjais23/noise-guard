@@ -231,7 +231,7 @@ export const RESEARCH_TOPICS: ResearchTopic[] = [
       'Predictive Spatio-Temporal Forecasting: Utilizing Graph Neural Networks (GNN) and LSTM networks to forecast weekend or holiday noise surges from weather and traffic telemetry.'
     ],
     details: [
-      'The envisioned hardware pipeline: Calibrated I2S MEMS microphone -> ESP32 microcontroller running onboard FFT -> TLS-encrypted MQTT over Wi-Fi/4G -> Supabase PostgreSQL DB -> NoiseGuard Live UI.'
+      'The envisioned hardware pipeline: Calibrated I2S MEMS microphone -> ESP32 microcontroller running onboard FFT -> TLS-encrypted MQTT over Wi-Fi/4G -> Supabase PostgreSQL DB -> NoiseWatch Live UI.'
     ],
     citations: [
       {

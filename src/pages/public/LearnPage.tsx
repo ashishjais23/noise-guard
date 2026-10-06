@@ -22,7 +22,7 @@ const FAQS: FaqItem[] = [
   },
   {
     q: 'Why are smartphone microphones considered "device estimates"?',
-    a: 'Normal consumer smartphones and laptops contain microphones designed to capture voice frequencies rather than full acoustic pressure spectrums. They apply automatic gain control (AGC) and noise suppression algorithms. Certified environmental meters (Class 1 or Class 2 IEC 61672) cost thousands of dollars and undergo rigorous physical calibration. NoiseGuard uses your phone microphone to provide a helpful situational estimate, clearly distinguished from laboratory instruments.'
+    a: 'Normal consumer smartphones and laptops contain microphones designed to capture voice frequencies rather than full acoustic pressure spectrums. They apply automatic gain control (AGC) and noise suppression algorithms. Certified environmental meters (Class 1 or Class 2 IEC 61672) cost thousands of dollars and undergo rigorous physical calibration. NoiseWatch uses your phone microphone to provide a helpful situational estimate, clearly distinguished from laboratory instruments.'
   },
   {
     q: 'What are the permissible noise limits in India under CPCB rules?',
@@ -34,7 +34,7 @@ const FAQS: FaqItem[] = [
   },
   {
     q: 'What happens after I submit a citizen report?',
-    a: 'When you submit a report on NoiseGuard, an official Tracking ID (NG-XXXXXX) is generated. The report is recorded in the civic registry, categorized by severity, and correlated with nearby automated IoT monitoring stations. Environmental nodal officers can verify the violation, assign patrol squads, or issue municipal notices.'
+    a: 'When you submit a report on NoiseWatch, an official Tracking ID (NG-XXXXXX) is generated. The report is recorded in the civic registry, categorized by severity, and correlated with nearby automated IoT monitoring stations. Environmental nodal officers can verify the violation, assign patrol squads, or issue municipal notices.'
   }
 ];
 
@@ -195,10 +195,10 @@ export const LearnPage: React.FC = () => {
       <div className="p-6 rounded-3xl bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 space-y-2 text-xs text-teal-950 dark:text-teal-200">
         <div className="flex items-center gap-2 font-bold text-sm">
           <ShieldCheck className="w-5 h-5 text-teal-600 dark:text-teal-400" />
-          <span>NoiseGuard Transparency Charter</span>
+          <span>NoiseWatch Transparency Charter</span>
         </div>
         <p className="leading-relaxed">
-          NoiseGuard never falsely claims consumer smartphone microphones are calibrated Class-1 sound level meters. Our architecture clearly partitions live device estimates from municipal IoT sensors, giving citizens practical daily awareness while preserving rigorous scientific standards.
+          NoiseWatch never falsely claims consumer smartphone microphones are calibrated Class-1 sound level meters. Our architecture clearly partitions live device estimates from municipal IoT sensors, giving citizens practical daily awareness while preserving rigorous scientific standards.
         </p>
       </div>
     </div>

@@ -22,11 +22,11 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({
                 <Volume2 className="w-4 h-4" />
               </div>
               <span className="font-extrabold text-slate-900 dark:text-white tracking-tight text-lg">
-                NoiseGuard
+                NoiseWatch
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
-              NoiseGuard is a civic acoustic monitoring and citizen reporting initiative. Empowering citizens to track urban soundscapes, report threshold violations, and advocate for quieter, healthier communities.
+              NoiseWatch is a civic acoustic monitoring and citizen reporting initiative. Empowering citizens to track urban soundscapes, report threshold violations, and advocate for quieter, healthier communities.
             </p>
             <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
               <ShieldCheck className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
@@ -121,7 +121,7 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({
 
         {/* Bottom bar */}
         <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400 dark:text-slate-500">
-          <p>© {new Date().getFullYear()} NoiseGuard Platform. Dedicated to Urban Acoustic Health.</p>
+          <p>© {new Date().getFullYear()} NoiseWatch — Civic Noise Platform. Dedicated to Urban Acoustic Health.</p>
           <p className="flex items-center gap-1">
             Built for civic well-being &amp; academic transparency
           </p>

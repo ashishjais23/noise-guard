@@ -1,11 +1,11 @@
-# NoiseGuard: Smart Urban Noise Monitoring & Control System
+# NoiseWatch: Civic Noise Platform & Urban Monitoring System
 > **Academic & Research Prototype (College Project - EVS)**  
-> *Subtitle: "Making Cities Quieter, Healthier & Smarter."*
+> *Subtitle: "KNOW YOUR NOISE. Measure. Understand. Report."*
 
 ---
 
 ## 📌 Project Overview
-**NoiseGuard** is an educational and research-oriented smart-city web application engineered to monitor, analyze, visualize, and assist in managing urban noise pollution. Developed as an **Environmental Studies (EVS)** project, the system demonstrates how spatial and temporal sound level telemetry can be ingested, analyzed according to environmental health metrics ($L_{eq}$, $L_{den}$), mapped geospatially, and translated into threshold alerts and rule-based mitigation strategies.
+**NoiseWatch** is an educational and research-oriented smart-city web application engineered to monitor, analyze, visualize, and assist in managing urban noise pollution. Developed as an **Environmental Studies (EVS)** project, the system demonstrates how spatial and temporal sound level telemetry can be ingested, analyzed according to environmental health metrics ($L_{eq}$, $L_{den}$), mapped geospatially, and translated into threshold alerts and rule-based mitigation strategies.
 
 ### 🛡️ Academic Integrity & Hardware Disclosure
 - **Zero Sensor Pretense:** The current software prototype does **NOT** falsely claim to be wired to physical sound sensors.
@@ -29,7 +29,7 @@
 ---
 
 ## 🗺️ Application Architecture & Pages
-NoiseGuard includes **9 dedicated views**:
+NoiseWatch includes **9 dedicated views**:
 
 1. **Home (`/`):** Hero section, live status overview across monitored city points, "What It Does" breakdown, 6-stage architecture pipeline, and academic transparency notice.
 2. **Dashboard:** Primary command center with live KPI metric cards (Current Noise Level, Average Today, Maximum Recorded, High Noise Events, Monitored Locations), real-time simulation controls (Pause, Resume, Reset, Rate selector), Recharts live trend line chart (1h, 6h, 24h), and quick hotspot cards.
@@ -66,7 +66,7 @@ npm run build
 ---
 
 ## 🗄️ Database & Supabase Integration (Optional)
-NoiseGuard works seamlessly offline out-of-the-box. To connect a remote Supabase PostgreSQL database:
+NoiseWatch works seamlessly offline out-of-the-box. To connect a remote Supabase PostgreSQL database:
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. Open the **SQL Editor** in your Supabase dashboard and execute the DDL script found in `supabase/schema.sql`.

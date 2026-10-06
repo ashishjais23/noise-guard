@@ -49,7 +49,7 @@ export const NoiseLevelExplanation: React.FC<NoiseLevelExplanationProps> = ({
           title: 'Potentially Harmful Noise',
           summary: 'Severe acoustic pollution requiring immediate mitigation and caution.',
           details: 'Sound levels exceed 85 dB. Long-term continuous exposure at this level can lead to noise-induced hearing fatigue and permanent tinnitus. Typically produced by un-muffled generators, jackhammers, rock events, or air horns.',
-          recommendation: 'Keep distance and protect your ears. Report this excessive noise immediately through NoiseGuard.'
+          recommendation: 'Keep distance and protect your ears. Report this excessive noise immediately through NoiseWatch.'
         };
     }
   };

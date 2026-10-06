@@ -258,7 +258,7 @@ export const MethodologyPage: React.FC = () => {
               icon: <Database className="w-5 h-5 text-emerald-600" />
             },
             {
-              title: 'NoiseGuard Live UI',
+              title: 'NoiseWatch Live UI',
               sub: 'Real-time Leaflet GIS mapping, dynamic alerts & Recharts',
               icon: <Monitor className="w-5 h-5 text-teal-600" />
             }

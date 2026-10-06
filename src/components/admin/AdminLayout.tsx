@@ -117,7 +117,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-extrabold text-slate-900 dark:text-white tracking-tight text-base sm:text-lg">
-                      NoiseGuard Admin
+                      NoiseWatch Admin
                     </span>
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                       Authority Console

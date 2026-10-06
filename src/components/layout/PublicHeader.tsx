@@ -74,7 +74,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
               </div>
               <div>
                 <span className="font-extrabold text-slate-900 dark:text-white tracking-tight text-lg">
-                  NoiseGuard
+                  NoiseWatch
                 </span>
                 <span className="text-[10px] text-teal-700 dark:text-teal-400 font-semibold block leading-none">
                   Civic Noise Platform

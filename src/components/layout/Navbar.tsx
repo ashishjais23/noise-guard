@@ -53,7 +53,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-slate-900 tracking-tight text-base sm:text-lg">
-                    NoiseGuard
+                    NoiseWatch
                   </span>
                   <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                     EVS Prototype

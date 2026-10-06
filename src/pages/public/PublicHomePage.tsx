@@ -193,10 +193,10 @@ export const PublicHomePage: React.FC<PublicHomePageProps> = ({
         </div>
       </section>
 
-      {/* 3. How NoiseGuard Works (Requirement #16) */}
+      {/* 3. How NoiseWatch Works (Requirement #16) */}
       <section className="space-y-4 pt-2">
         <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white text-center sm:text-left">
-          How NoiseGuard Works
+          How NoiseWatch Works
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -244,10 +244,10 @@ export const PublicHomePage: React.FC<PublicHomePageProps> = ({
         </div>
       </section>
 
-      {/* 4. Why NoiseGuard? (Requirement #16) */}
+      {/* 4. Why NoiseWatch? (Requirement #16) */}
       <section className="space-y-4 pt-2">
         <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white text-center sm:text-left">
-          Why NoiseGuard?
+          Why NoiseWatch?
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

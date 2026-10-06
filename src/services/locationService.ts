@@ -1,5 +1,5 @@
 /**
- * NoiseGuard Geolocation & Reverse Geocoding Service
+ * NoiseWatch Geolocation & Reverse Geocoding Service
  * Uses genuine browser GPS (enableHighAccuracy) and OpenStreetMap Nominatim.
  * Completely free of hardcoded city constraints.
  */

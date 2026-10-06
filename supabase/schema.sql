@@ -1,5 +1,5 @@
 -- ====================================================================
--- NoiseGuard: Smart Urban Noise Monitoring & Control System
+-- NoiseWatch: Smart Urban Noise Monitoring & Control System
 -- PostgreSQL / Supabase Database Schema
 -- Academic & Research Prototype (College Project - EVS)
 -- ====================================================================

@@ -46,7 +46,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           </h1>
 
           <p className="mt-5 text-base sm:text-lg text-slate-600 leading-relaxed font-normal">
-            NoiseGuard is a smart urban noise monitoring prototype that helps visualize noise levels, identify hotspots, analyze patterns, and support data-informed noise management.
+            NoiseWatch is a smart urban noise monitoring prototype that helps visualize noise levels, identify hotspots, analyze patterns, and support data-informed noise management.
           </p>
 
           {/* CTAs */}
@@ -129,7 +129,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             SYSTEM CAPABILITIES
           </h2>
           <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
-            What NoiseGuard Does
+            What NoiseWatch Does
           </h3>
           <p className="text-sm text-slate-600 mt-2">
             An end-to-end framework integrating telemetry, spatial analytics, threshold alerting, and rule-based mitigation.

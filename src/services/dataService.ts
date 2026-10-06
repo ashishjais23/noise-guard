@@ -639,7 +639,7 @@ class DataService {
     const session: AdminUser = {
       username: userKey,
       name: userRecord.name,
-      email: `${userKey}@noiseguard.gov.in`,
+      email: `${userKey}@noisewatch.gov.in`,
       role: userRecord.role,
       token: `ng_auth_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
       lastLogin: new Date().toISOString()

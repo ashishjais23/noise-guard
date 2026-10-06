@@ -16,7 +16,7 @@ export const Footer: React.FC<FooterProps> = ({ setActivePage }) => {
           <div>
             <p className="font-semibold text-slate-700">Academic &amp; Research Prototype</p>
             <p className="mt-0.5 text-slate-500 leading-relaxed">
-              NoiseGuard is developed as an Environmental Studies (EVS) academic project. Demo mode uses simulated stochastic data; real-world deployment requires calibrated acoustic hardware compliant with IEC 61672 standards.
+              NoiseWatch is developed as an Environmental Studies (EVS) academic project. Demo mode uses simulated stochastic data; real-world deployment requires calibrated acoustic hardware compliant with IEC 61672 standards.
             </p>
           </div>
         </div>
